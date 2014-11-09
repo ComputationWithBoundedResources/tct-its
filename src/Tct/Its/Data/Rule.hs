@@ -16,8 +16,10 @@ type Var  = String
 type Poly = P.Polynomial Int Var
 
 type Loc  = String
-data Term = Term Loc [Poly]
-  deriving (Eq, Ord, Show)
+data Term = Term 
+  { loc  :: Loc 
+  , args :: [Poly]
+  } deriving (Eq, Ord, Show)
 
 data Atom
   = Eq Poly Poly
@@ -134,25 +136,4 @@ pConstraint = do
 
 pRule :: Parser Rule
 pRule = (Rule <$> pTerm <*> (pSep *> pTerms) <*> pConstraint) PR.<?> "rule"
-
--- TODO: what happens if we have multiple startterms?
--- we could always provide a unique one
-pProblem :: Parser [Rule]
-pProblem = do
-  void $ PR.parens (PR.symbol "GOAL COMPLEXITY")
-  void $ PR.parens (PR.symbol "STARTTERM" >> PR.parens (PR.symbol "FUNCTIONSYMBOLS" >> PR.many1 PR.identifier))
-  void $ PR.parens (PR.symbol "VAR" >> PR.many PR.identifier)
-  PR.parens (PR.symbol "RULES" >> PR.many pRule)
-  PR.<?> "problem"
-
-fromString :: String -> [Rule]
-fromString s = case PR.parse pProblem "" s of
-  Left e   -> error (show e)
-  Right rs -> rs
-
-io :: String -> IO ()
-io s = do 
-  st <- readFile s
-  print st
-  print $ ppRules (fromString st)
 
