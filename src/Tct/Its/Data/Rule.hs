@@ -15,9 +15,9 @@ import qualified Tct.Core.Common.Parser as PR
 type Var  = String
 type Poly = P.Polynomial Int Var
 
-type Loc  = String
+type Fun  = String
 data Term = Term 
-  { loc  :: Loc 
+  { fun  :: Fun 
   , args :: [Poly]
   } deriving (Eq, Ord, Show)
 
@@ -26,7 +26,25 @@ data Atom
   | Gte Poly Poly
   deriving (Eq, Ord, Show)
 
+isLinearA :: Atom -> Bool
+isLinearA (Eq p1 p2)  = P.isLinear p1 && P.isLinear p2
+isLinearA (Gte p1 p2) = P.isLinear p1 && P.isLinear p2
+
+normaliseA :: Atom -> [Atom]
+normaliseA (Eq p1 p2)  = [Gte (p1 `sub` p2) zero, Gte (p2 `sub` p1) zero]
+normaliseA (Gte p1 p2) = [Gte (p1 `sub` p2) zero]
+
+interpretTerm :: (Fun -> [a] -> a) -> (Poly -> a) -> Term -> a
+interpretTerm f g t = f (fun t) (map g (args t))
+
 type Constraint = [Atom]
+
+isLinear :: Constraint -> Bool
+isLinear = all isLinearA
+
+normalise :: Constraint -> Constraint
+normalise = concatMap normaliseA
+
 
 data Rule = Rule
   { lhs :: Term
@@ -66,14 +84,6 @@ instance PP.Pretty Rule where
   pretty (Rule l rs cs) =
     PP.pretty l PP.<+> ppSep PP.<+> ppTerms rs PP.<+> ppAtoms cs
 
-ppRules :: [Rule] -> PP.Doc
-ppRules rs = PP.table [(PP.AlignLeft, lhss), (PP.AlignLeft, rhss), (PP.AlignLeft, css)]
-  where
-    lhss = map (PP.pretty . lhs) rs
-    rhss = map ((\p -> ppSpace PP.<> ppSep PP.<> ppSpace PP.<> p) . ppTerms . rhs ) rs
-    css  = map (ppAtoms . con ) rs
-    ppSpace = PP.string "  "
-
 -- Parsing -----------------------------------------------------------------------------------------------------------
 
 -- prule should parse 
@@ -102,8 +112,8 @@ pPoly = PE.buildExpressionParser table poly PR.<?> "poly"
       [ [ unary "-" neg ]
       , [ binaryL "*" mul PE.AssocLeft]
       , [ binaryL "+" add PE.AssocLeft, binaryL "-" sub PE.AssocLeft] ]
-    unary fun op = PE.Prefix (PR.reserved fun *> return op)
-    binaryL fun op = PE.Infix (PR.reserved fun *> return op)
+    unary f op = PE.Prefix (PR.reserved f *> return op)
+    binaryL f op = PE.Infix (PR.reserved f *> return op)
 
 -- f([poly])
 pTerm :: Parser Term

@@ -23,5 +23,5 @@ estimateGraphWith f rs = G.mkGraph ns es
 
 -- | only compares function symbols
 functionSymbols :: Rule -> Rule -> Bool
-functionSymbols r1 r2 = or [ loc r == lloc | let lloc = loc (lhs r2), r <- rhs r1 ]
+functionSymbols r1 r2 = or [ fun r == lfun | let lfun = fun (lhs r2), r <- rhs r1 ]
 

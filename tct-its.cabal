@@ -32,19 +32,25 @@ Library
   exposed-modules:
     Tct.Its
     Tct.Its.Data
-    Tct.Its.Data.Rule
+    Tct.Its.Data.Bounds
+    Tct.Its.Data.Cost
     Tct.Its.Data.Graph
     Tct.Its.Data.Problem
+    Tct.Its.Data.Rule
+    Tct.Its.Data.Sizebounds
+    Tct.Its.Data.Timebounds
+    Tct.Its.Processor.PolyRank
+    Tct.Its.Processor.Empty
   build-depends:
-    containers     >= 0.5 && < 0.6,
-    mtl            >= 2.1 && < 2.2,
-    base           == 4.*,
-    fgl            == 5.5.*,
-    parsec         == 3.1.*,
+    containers       >= 0.5 && < 0.6,
+    mtl              >= 2.1 && < 2.2,
+    base             == 4.*,
+    fgl              == 5.5.*,
+    parsec           == 3.1.*,
 
-    smtlib         == 0.*,
-    tct-common     == 3.*,
-    tct-core       == 3.*
+    smtlib           == 0.*,
+    tct-common       == 3.*,
+    tct-core         == 3.*
     
   ghc-options:
     -j -Wall -fno-warn-orphans -fno-spec-constr-count -rtsopts -with-rtsopts=-N
