@@ -14,6 +14,12 @@ isDefined :: Bounds k -> Bool
 isDefined = not . M.foldl' k False
   where k b c = b || c == omega
 
+strict :: Bounds k -> [k]
+strict = M.keys . M.filter (== omega)
+
+weak :: Bounds k -> [k] 
+weak = M.keys . M.filter (/= omega)
+
 union :: Ord k => Bounds k -> Bounds k -> Bounds k
 union = M.unionWith minimal
 

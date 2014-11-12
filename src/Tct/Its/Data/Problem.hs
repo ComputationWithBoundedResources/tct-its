@@ -24,7 +24,7 @@ import           Tct.Its.Data.Cost
 type Signature = M.Map Fun Int
 
 data Its = Its
-  { rules      :: [Rule]
+  { rules      :: [Rule] -- split into strict/weak rules?
   , graph      :: Graph
   , signature  :: Signature
   , startterm  :: Term
@@ -53,6 +53,7 @@ updateTimebounds prob tb = prob { timebounds = TB.union (timebounds prob) tb }
 instance PP.Pretty Its where
   pretty prob = 
     ppRules (rules prob) (timebounds prob)
+    PP.<$$> PP.text (show $ signature prob)
 
 itsMode :: TctMode Its ()
 itsMode = TctMode
