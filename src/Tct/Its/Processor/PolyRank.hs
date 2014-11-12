@@ -27,11 +27,12 @@ import Tct.Its.Data.Problem
 
 
 --- Instances --------------------------------------------------------------------------------------------------------
-polyRankProcessor :: PolyRankProcessor
-polyRankProcessor = PolyRank PI.StronglyLinear
+poly :: PI.Shape -> Strategy Its
+poly = Proc . PolyRank
 
-poly ::Declaration ('[ Argument 'Required PI.Shape ] :-> Strategy Its)
-poly = declaration polyRankProcessor
+
+polyDeclaration ::Declaration ('[ Argument 'Required PI.Shape ] :-> Strategy Its)
+polyDeclaration = declare "poly" ["(non-liear) polynomial ranking function."] (OneTuple PI.shapeArg) poly
 
 stronglyLinear, linear, quadratic :: Strategy Its
 stronglyLinear = Proc (PolyRank PI.StronglyLinear)
@@ -58,8 +59,6 @@ instance PP.Pretty PolyRankProof where pretty = PP.text . show
 instance Processor PolyRankProcessor where
   type ProofObject PolyRankProcessor = PolyRankProof
   type Problem PolyRankProcessor     = Its
-  type ProcessorArgs PolyRankProcessor = 
-    '[Argument 'Required PI.Shape ]
   solve p prob 
     | closed prob = return $ resultToTree p prob $ Fail (PolyRankProof Empty)
     | otherwise = do
@@ -70,7 +69,6 @@ instance Processor PolyRankProcessor where
           SMT.Error s -> Fail (PolyRankProof $ Inapplicable s)
           _ -> Fail (PolyRankProof $ Incompatible)
 
-  declaration _ = declareProcessor "poly" [] (OneTuple PI.shapeArg) (Proc . PolyRank)
 
 
 newtype Strict = Strict { unStrict :: Rule }
@@ -85,10 +83,11 @@ num' i = if i < 0 then SMT.nNeg (SMT.num (-i)) else SMT.num i
 -- mu_0 + Sum_i mu_i*p_i + Sum_j mu_j*p_j = 0
 -- decrease: 
 -- forall X . And p_i(X) >= 0 => l(X) - r(X) > 0
--- -> forall X . not (And p_i(X) >= 0) => l(X) - (r(x) + strict) >= 0
--- -> not(not (And p_i(X) >= 0) => l(X) - (r(x) + strict) >= 0) is unsat
+-- -> forall X . not (And p_i(X) >= 0) or l(X) - (r(x) + strict) >= 0
+-- -> not(not (And p_i(X) >= 0) or l(X) - (r(x) + strict) >= 0) is unsat
 -- -> (And p_i(X) >= 0) and not(l(X) - (r(x) + strict) >= 0)) is unsat
--- -> (And p_i(X) >= 0) and r(X) + strict - l(x) >= 0) is unsat
+-- -> (And p_i(X) >= 0) and r(X) + strict - l(x) > 0) is unsat
+-- -> mu_0 + mu_1*(r(X) - l(x)) + mu_j*p_i(X) = 0
 -- bounded : 
 -- forall X . And p_i(X) >= 0 => l(X) > 0
 -- -> forall X . And p_i(X) >= 0 => l(X) - 1 >= 0
@@ -112,8 +111,7 @@ entscheide proc prob = do
       order r = do
         fm1 <- decrease r
         fm2 <- bounded r
-        return (fm1 SMT..&& ((strict r SMT..> SMT.zero) `impl` fm2))
-          where impl a b = SMT.not a SMT..|| b --FIXME: smtLib prints => minismt takes imples (what is official)
+        return (fm1 SMT..&& ((strict r SMT..> SMT.zero) SMT..==> fm2))
 
       decrease r@(Rule l rs cs) = absolute `liftM` eliminate pl (interpretCon cs)
         where  pl = (interpretRhs rs `add` (P.constant $ strict r)) `sub` interpretLhs l
@@ -161,5 +159,5 @@ eliminate p ps  = do
   mu1 <- nvar'
   SMT.assert $ mu0 SMT..> SMT.zero SMT..|| mu1 SMT..> SMT.zero
   mui <- mapM (\_ -> P.constant `liftM` nvar') [1..length ps]
-  return $ bigAdd $ P.constant mu0 : P.constant mu1 `mul` p : zipWith mul mui ps
+  return $ bigAdd $ P.constant mu0 : (P.constant mu1 `mul` p) : (zipWith mul mui ps)
 
