@@ -66,7 +66,7 @@ instance PP.Pretty PolyOrder where
     where
       interpret pint t = C.poly $ interpretTerm interpretFun interpretArg t
         where
-          interpretFun f = P.substituteVars (PI.interpretations pint M.! f) . M.fromList . zip [PI.SomeIndeterminate 0..]
+          interpretFun f = P.substituteVariables (PI.interpretations pint M.! f) . M.fromList . zip [PI.SomeIndeterminate 0..]
           interpretArg a = a 
 
 instance PP.Pretty PolyRankProof where
@@ -147,7 +147,7 @@ entscheide proc prob = do
     bigAndM = liftM SMT.bigAnd . sequence
     allrules = rules prob
     strictrules = TB.strict (timebounds prob)
-    encode = P.pfromViewWithM (\c -> SMT.fm `liftM` SMT.ivarm c)
+    encode = P.fromViewWithM (\c -> SMT.fm `liftM` SMT.ivarm c) -- FIXME: incorporate restrict var for strongly linear
     absi = M.mapWithKey (curry (PI.mkInterpretation kind)) sig
     kind = PI.ConstructorBased shp []
     sig = signature prob
@@ -155,17 +155,17 @@ entscheide proc prob = do
 
     interpret ebsi = interpretTerm interpretFun interpretArg
       where
-        interpretFun f = P.substituteVars interp . M.fromList . zip [PI.SomeIndeterminate 0..]
+        interpretFun f = P.substituteVariables interp . M.fromList . zip [PI.SomeIndeterminate 0..]
           where interp = PI.interpretations ebsi M.! f
         interpretArg a = P.mapCoefficients num' a
 
     mkOrder (inter, stricts) = (times, PolyOrder allrules (PI.PolyInter pint))
       where
         stricts' = M.mapKeysMonotonic unStrict $ M.filter (>0) stricts
-        pint  = M.map (P.pfromViewWith (inter M.!)) absi
+        pint  = M.map (P.fromViewWith (inter M.!)) absi
         costs = C.poly $ interpretTerm interpretFun interpretArg (startterm prob)
         times = M.map (const costs) stricts'
-        interpretFun f = P.substituteVars (pint M.! f) . M.fromList . zip [PI.SomeIndeterminate 0..]
+        interpretFun f = P.substituteVariables (pint M.! f) . M.fromList . zip [PI.SomeIndeterminate 0..]
         interpretArg a = a 
 
 -- expects: (E A)(F X) /\ p_i >= 0 
