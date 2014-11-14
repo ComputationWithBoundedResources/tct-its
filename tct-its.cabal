@@ -62,5 +62,6 @@ Library
     GeneralizedNewtypeDeriving,
     MultiParamTypeClasses, 
     TypeFamilies,
-    TypeOperators
+    TypeOperators,
+    OverlappingInstances
 

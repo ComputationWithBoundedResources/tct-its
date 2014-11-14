@@ -42,8 +42,8 @@ ppRules rs tb =
   PP.table [(PP.AlignLeft, lhss), (PP.AlignLeft, rhss), (PP.AlignLeft, css), (PP.AlignLeft, tbs)]
   where
     lhss = map (PP.pretty . lhs) rs
-    rhss = map ((\p -> ppSpace PP.<> ppSep PP.<> ppSpace PP.<> p) . ppTerms . rhs ) rs
-    css  = map (ppAtoms . con ) rs
+    rhss = map ((\p -> ppSpace PP.<> ppSep PP.<> ppSpace PP.<> p) . PP.pretty . rhs ) rs
+    css  = map (PP.pretty . con ) rs
     tbs  = map ((ppSpace PP.<>) . PP.pretty . (tb M.!)) rs
     ppSpace = PP.string "  "
 

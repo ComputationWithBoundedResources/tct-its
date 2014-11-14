@@ -60,22 +60,33 @@ underSym = ":|:"
 andSym   = "&&"
 
 
-instance PP.Pretty Term where
-  pretty (Term f ts) = PP.string f PP.<> PP.tupled (map PP.pretty ts)
+ppTerm :: Term -> PP.Doc
+ppTerm (Term f ts) = PP.string f PP.<> PP.tupled (map PP.pretty ts)
 
 ppTerms ::  [Term] -> PP.Doc
 ppTerms ts = PP.char 'c' PP.<> PP.int (length ts) PP.<> PP.tupled (map PP.pretty ts)
 
+instance PP.Pretty Term where
+  pretty = ppTerm
+
+instance PP.Pretty [Term] where
+  pretty = ppTerms
+
+
 ppBinop :: (PP.Pretty a1, PP.Pretty a2) => a1 -> String -> a2 -> PP.Doc
 ppBinop t1 op t2 = PP.pretty t1 PP.<+> PP.text op PP.<+> PP.pretty t2
+
+ppAtoms :: [Atom] -> PP.Doc
+ppAtoms [] = PP.text "True"
+ppAtoms as = PP.encloseSep PP.lbracket PP.rbracket (PP.text andSym) (map PP.pretty as)
 
 instance PP.Pretty Atom where
   pretty (Eq t1 t2)  = ppBinop t1 "=" t2
   pretty (Gte t1 t2) = ppBinop t1 ">=" t2
 
-ppAtoms :: [Atom] -> PP.Doc
-ppAtoms [] = PP.empty
-ppAtoms as = PP.encloseSep PP.lbracket PP.rbracket (PP.text andSym) (map PP.pretty as)
+instance PP.Pretty [Atom] where
+  pretty = ppAtoms
+
 
 ppSep :: PP.Doc
 ppSep = PP.text arrowSym
