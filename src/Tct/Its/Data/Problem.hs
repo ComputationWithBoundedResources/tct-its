@@ -1,4 +1,12 @@
-module Tct.Its.Data.Problem where
+module Tct.Its.Data.Problem 
+  ( Its (..)
+  --, rvss
+  , domain
+  , closed
+  , updateTimebounds
+
+  , itsMode
+  ) where
 
 
 import qualified Data.Map                   as M
@@ -14,38 +22,35 @@ import           Tct.Core.Processor.Trivial (failing)
 
 import qualified Tct.Common.Polynomial      as P
 
-import           Tct.Its.Data.Graph         (Graph, estimateGraph)
+import           Tct.Its.Data.TransitionGraph  (estimateGraph)
 import           Tct.Its.Data.Rule
-import qualified Tct.Its.Data.Sizebounds    as SB
 import qualified Tct.Its.Data.Timebounds    as TB
 import           Tct.Its.Data.Cost
+import           Tct.Its.Data.Types
 
 
-type Signature = M.Map Fun Int
+{-rvss :: Vars -> Rules -> [RV]-}
+{-rvss vs = concatMap k-}
+  {-where k (i,r) = [ (i, rhsIdx, v) | rhsIdx <- [1..length (rhs r)], v <- vs ]-}
 
-data Its = Its
-  { rules      :: [Rule] -- split into strict/weak rules?
-  , graph      :: Graph
-  , signature  :: Signature
-  , startterm  :: Term
+-- | returns the domain; which is fixed for a problem
+domain :: Its -> Vars
+domain = concatMap P.variables . args . startterm
 
-  -- complexity o
-  , timebounds :: TB.Timebounds
-  , sizebounds :: SB.Sizebounds
-  } deriving Show
 
 closed :: Its -> Bool
 closed = TB.isDefined . timebounds
 
-ppRules :: [Rule] -> TB.Timebounds -> PP.Doc
+ppRules :: Rules -> TB.Timebounds -> PP.Doc
 ppRules rs tb = 
   PP.table [(PP.AlignLeft, lhss), (PP.AlignLeft, rhss), (PP.AlignLeft, css), (PP.AlignLeft, tbs)]
   where
-    lhss = map (PP.pretty . lhs) rs
-    rhss = map ((\p -> ppSpace PP.<> ppSep PP.<> ppSpace PP.<> p) . PP.pretty . rhs ) rs
-    css  = map (PP.pretty . con ) rs
-    tbs  = map ((ppSpace PP.<>) . PP.pretty . (tb M.!)) rs
+    lhss = map (PP.pretty . lhs) rsl
+    rhss = map ((\p -> ppSpace PP.<> ppSep PP.<> ppSpace PP.<> p) . PP.pretty . rhs ) rsl
+    css  = map (PP.pretty . con ) rsl
+    tbs  = map ((ppSpace PP.<>) . PP.pretty . (tb M.!)) is
     ppSpace = PP.string "  "
+    (is, rsl) = unzip rs
 
 updateTimebounds :: Its -> TB.Timebounds -> Its
 updateTimebounds prob tb = prob { timebounds = TB.union (timebounds prob) tb }
@@ -55,6 +60,8 @@ instance PP.Pretty Its where
     ppRules (rules prob) (timebounds prob)
     PP.<$$> PP.text (show $ signature prob)
 
+
+-- mode
 itsMode :: TctMode Its ()
 itsMode = TctMode
   { modeParser          = parser
@@ -68,19 +75,23 @@ itsMode = TctMode
 answering :: Return (ProofTree Its) -> SomeAnswer
 answering (Abort _)     = answer omega
 answering (Continue pt) = answer $ case F.toList pt of
-  [prob] -> TB.cost (timebounds prob)
+  [prob] -> TB.totalBound (timebounds prob)
   _      -> omega
 
 initialise :: ([Fun], [Var], [Rule]) -> Its
-initialise ([fs],vs, rs) = Its
+initialise ([fs],vs, rsl) = Its
   { rules      = rs
-  , signature  = mkSignature rs
+  , signature  = mkSignature rsl
 
   , startterm  = Term fs (map P.variable vs)
-  , graph      = estimateGraph rs
+  , tgraph     = estimateGraph rs
+  , rvgraph    = Nothing 
 
   , timebounds = TB.initialise rs
-  , sizebounds = SB.initialise rs }
+  , sizebounds = Nothing
+  , localSizebounds = Nothing
+  }
+  where rs = zip [0..] rsl
 initialise _ = error "Problem.initialise: not implemented: multiple start symbols"
 
 mkSignature :: [Rule] -> Signature

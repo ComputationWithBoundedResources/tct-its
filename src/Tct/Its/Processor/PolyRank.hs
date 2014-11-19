@@ -47,7 +47,7 @@ module Tct.Its.Processor.PolyRank where
 
 import           Control.Monad                       (liftM)
 import           Control.Monad.Trans                 (liftIO)
-import           Data.List                           ((\\))
+import           Data.List                           (partition)
 import qualified Data.Map.Strict                     as M
 import qualified Data.Traversable                    as T (mapM)
 
@@ -156,7 +156,7 @@ instance Processor PolyRankProcessor where
 
 
 
-newtype Strict = Strict { unStrict :: Rule }
+newtype Strict = Strict { unStrict :: Int }
   deriving (Eq, Ord, Show)
 
 num' :: Int -> SMT.Expr
@@ -168,19 +168,19 @@ entscheide proc prob = do
     SMT.setLogic "QF_NIA"
     -- TODO: memoisation is here not used
     (ebsi,coefficientEncoder) <- SMT.memo $ PI.PolyInter `liftM` T.mapM encode absi
-    (_, strictVarEncoder) <- SMT.memo $ mapM  (SMT.snvarm . Strict) allrules
+    (_, strictVarEncoder) <- SMT.memo $ mapM  (SMT.snvarm . Strict) (indices allrules)
 
     let
       strict = SMT.fm . (strictVarEncoder M.!) . Strict
       interpretLhs    = interpret ebsi
       interpretRhs ts = interpret ebsi (head ts) -- TODO
-      interpretCon cs = [ P.mapCoefficients num' c | Gte c _ <- normalise cs ]
+      interpretCon cs = [ P.mapCoefficients num' c | Gte c _ <- toGte cs ]
       absolute p = SMT.bigAnd [ c SMT..== SMT.zero | c <- P.coefficients p ]
 
 
     let -- generalised farkas
-      decrease r@(Rule l rs cs) = pl `eliminate` (interpretCon cs)
-        where  pl = (interpretRhs rs `add` (P.constant $ strict r)) `sub` interpretLhs l
+      decrease (i,(Rule l rs cs)) = pl `eliminate` (interpretCon cs)
+        where  pl = (interpretRhs rs `add` (P.constant $ strict i)) `sub` interpretLhs l
       bounded (Rule l _ cs) = eliminate pl (interpretCon cs)
         where pl = neg $ interpretLhs l `sub` P.constant one
       eliminate p ps = do
@@ -193,9 +193,9 @@ entscheide proc prob = do
 
     let -- farkas
       -- TODO: handle non-linear expressions on rhs
-      decreaseFarkas r@(Rule l rs cs) = pl `eliminateFarkas`(interpretCon (filter isLinearA cs))
-        where pl = interpretLhs l `sub` (interpretRhs rs `add` P.constant (strict r))
-      boundedFarkas (Rule l _ cs) = pl `eliminateFarkas`(interpretCon (filter isLinearA cs))
+      decreaseFarkas (i,(Rule l rs cs)) = pl `eliminateFarkas`(interpretCon $ filterLinear cs)
+        where pl = interpretLhs l `sub` (interpretRhs rs `add` P.constant (strict i))
+      boundedFarkas (Rule l _ cs) = pl `eliminateFarkas`(interpretCon $ filterLinear cs)
         where pl = interpretLhs l `sub` P.constant one
 
       eliminateFarkas ply cs = do
@@ -210,13 +210,13 @@ entscheide proc prob = do
 
 
     let
-      order r = do
-        fm1 <- if useFarkas proc then decreaseFarkas r else decrease r
+      order (i,r) = do
+        fm1 <- if useFarkas proc then decreaseFarkas (i,r) else decrease (i,r)
         fm2 <- if useFarkas proc then boundedFarkas r else bounded r
-        return (fm1 SMT..&& ((strict r SMT..> SMT.zero) SMT..==> fm2))
+        return (fm1 SMT..&& ((strict i SMT..> SMT.zero) SMT..==> fm2))
 
       orderConstraint = [ order r | r <- allrules ]
-      rulesConstraint = [ strict r SMT..> SMT.zero | r <- strictrules ]
+      rulesConstraint = [ strict i SMT..> SMT.zero | i <- strictrules ]
 
     SMT.assert =<< bigAndM orderConstraint
     SMT.assert $ SMT.bigOr rulesConstraint
@@ -226,8 +226,8 @@ entscheide proc prob = do
   return $ mkOrder `fmap` res
   where
     bigAndM = liftM SMT.bigAnd . sequence
-    allrules = rules prob
-    strictrules = TB.strict (timebounds prob)
+    allrules = (rules prob)
+    strictrules = TB.nonDefined (timebounds prob)
     encode = P.fromViewWithM (\c -> SMT.fm `liftM` SMT.ivarm c) -- FIXME: incorporate restrict var for strongly linear
     absi = M.mapWithKey (curry (PI.mkInterpretation kind)) sig
     kind = PI.ConstructorBased shp []
@@ -243,12 +243,12 @@ entscheide proc prob = do
     mkOrder (inter, stricts) = PolyOrder
       { shape_  = shp
       , pint_   = PI.PolyInter pint
-      , strict_ = map (\r -> (r, inst (lhs r), bigAdd $ map inst (rhs r))) strictList
-      , weak_   = map (\r -> (r, inst (lhs r), bigAdd $ map inst (rhs r))) (allrules \\ strictList) 
+      , strict_ = map (\(_,r) -> (r, inst (lhs r), bigAdd $ map inst (rhs r))) strictList
+      , weak_   = map (\(_,r) -> (r, inst (lhs r), bigAdd $ map inst (rhs r))) weakList
       , times_  = times }
       where
         strictMap = M.mapKeysMonotonic unStrict $ M.filter (>0) stricts
-        strictList = M.keys strictMap
+        (strictList, weakList) = partition (\(i,_) -> i `M.member` strictMap) allrules
         pint  = M.map (P.fromViewWith (inter M.!)) absi
         costs = C.poly $ inst (startterm prob)
         times = M.map (const costs) strictMap

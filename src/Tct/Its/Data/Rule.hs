@@ -1,9 +1,30 @@
-module Tct.Its.Data.Rule where
+module Tct.Its.Data.Rule 
+  (
+  Term (..)
+  , Var
+  , Fun
+  , interpretTerm
+
+  , Atom  (..)
+  , Constraint    
+  , isLinear
+  , filterLinear
+  , toGte
+
+  , Rule (..)
+  , Rules
+  , indices
+  , Vars
+
+  -- TODO: move
+  , ppSep
+  , Parser
+  , pRule
+  ) where
 
 
 import Control.Monad (void)
 import Control.Applicative
-
 import qualified Text.Parsec.Expr as PE
 
 import qualified Tct.Common.Polynomial as P
@@ -11,46 +32,38 @@ import Tct.Common.Ring
 import qualified Tct.Core.Common.Pretty as PP
 import qualified Tct.Core.Common.Parser as PR
 
+import Tct.Its.Data.Types
 
-type Var  = String
-type Poly = P.Polynomial Int Var
 
-type Fun  = String
-data Term = Term 
-  { fun  :: Fun 
-  , args :: [Poly]
-  } deriving (Eq, Ord, Show)
-
-data Atom
-  = Eq Poly Poly
-  | Gte Poly Poly
-  deriving (Eq, Ord, Show)
 
 isLinearA :: Atom -> Bool
 isLinearA (Eq p1 p2)  = P.isLinear p1 && P.isLinear p2
 isLinearA (Gte p1 p2) = P.isLinear p1 && P.isLinear p2
 
-normaliseA :: Atom -> [Atom]
-normaliseA (Eq p1 p2)  = [Gte (p1 `sub` p2) zero, Gte (p2 `sub` p1) zero]
-normaliseA (Gte p1 p2) = [Gte (p1 `sub` p2) zero]
+toGteA :: Atom -> [Atom]
+toGteA (Eq p1 p2)  = [Gte (p1 `sub` p2) zero, Gte (p2 `sub` p1) zero]
+toGteA (Gte p1 p2) = [Gte (p1 `sub` p2) zero]
 
-interpretTerm :: (Fun -> [a] -> a) -> (Poly -> a) -> Term -> a
+interpretTerm :: (Fun -> [a] -> a) -> (IPoly -> a) -> Term -> a
 interpretTerm f g t = f (fun t) (map g (args t))
 
-type Constraint = [Atom]
 
 isLinear :: Constraint -> Bool
 isLinear = all isLinearA
 
-normalise :: Constraint -> Constraint
-normalise = concatMap normaliseA
+filterLinear :: Constraint -> Constraint
+filterLinear = filter isLinearA
+
+toGte :: Constraint -> Constraint
+toGte = concatMap toGteA
 
 
-data Rule = Rule
-  { lhs :: Term
-  , rhs :: [Term]
-  , con :: Constraint }
-  deriving (Eq, Ord, Show)
+
+indices :: Rules -> [Int]
+indices = fst . unzip
+
+
+
 
 
 -- Pretty Printing ---------------------------------------------------------------------------------------------------
@@ -102,17 +115,17 @@ instance PP.Pretty Rule where
 
 type Parser = PR.Parsec String ()
 
-pVar :: Parser Poly
+pVar :: Parser IPoly
 pVar = P.variable <$> PR.identifier
 
-pNat :: Parser Poly
+pNat :: Parser IPoly
 pNat = P.constant <$> PR.nat
 
 pSep :: Parser ()
 pSep = void (PR.symbol "->")
 
 -- constructs a polynomial over an arbitrary arithmetic expression over: int, var, *, +, -, ()
-pPoly :: Parser Poly
+pPoly :: Parser IPoly
 pPoly = PE.buildExpressionParser table poly PR.<?> "poly"
   where
     poly = 

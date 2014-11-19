@@ -8,17 +8,10 @@ module Tct.Its.Data.Timebounds
 
 import qualified Data.Map.Strict as M
 
-import qualified Tct.Core.Common.Pretty as PP
-
-import Tct.Its.Data.Rule (Rule)
+import Tct.Its.Data.Types
 import Tct.Its.Data.Cost
 import Tct.Its.Data.Bounds
 
-type Timebounds = M.Map Rule Cost
-
-initialise :: [Rule] -> Timebounds
-initialise rs = M.fromList (zip rs (repeat omega))
-
-instance PP.Pretty Timebounds where
-  pretty = ppBounds PP.pretty
+initialise :: Rules -> Timebounds
+initialise rs = M.fromList (zip (fst $ unzip rs) (repeat omega))
 

@@ -5,15 +5,10 @@ module Tct.Its.Data.Sizebounds
   , module Tct.Its.Data.Bounds
   ) where
 
-import qualified Data.Map.Strict     as M
-
 import           Tct.Its.Data.Bounds
-import           Tct.Its.Data.Cost   (Cost)
-import           Tct.Its.Data.Rule   (Rule, Var)
+import           Tct.Its.Data.Types
 
 
-type Sizebounds = M.Map (Rule,Int,Var) Cost
-
-initialise :: [Rule] -> Sizebounds
+initialise :: Rules -> Sizebounds
 initialise = error "Sizebounds.initialise: yet not implemented"
 
