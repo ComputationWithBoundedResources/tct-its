@@ -53,7 +53,7 @@ ppRules rs tb =
     (is, rsl) = unzip rs
 
 updateTimebounds :: Its -> TB.Timebounds -> Its
-updateTimebounds prob tb = prob { _timebounds = TB.union (_timebounds prob) tb }
+updateTimebounds prob tb = prob { _timebounds = TB.updates (_timebounds prob) tb }
 
 instance PP.Pretty Its where
   pretty prob = 
@@ -84,7 +84,7 @@ initialise ([fs],vs, rsl) = Its
   , _signature  = mkSignature rsl
 
   , _startterm  = Term fs (map P.variable vs)
-  , _tgraph     = estimateGraph rsl
+  , _tgraph     = estimateGraph rs
   , _rvgraph    = Nothing 
 
   , _timebounds = TB.initialise rs

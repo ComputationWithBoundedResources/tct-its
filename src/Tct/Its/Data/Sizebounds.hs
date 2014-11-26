@@ -2,6 +2,7 @@ module Tct.Its.Data.Sizebounds
   (
   Sizebounds
   , initialise
+  , boundsOfVars
 
   , sizebound
   , sizebounds
@@ -25,6 +26,11 @@ import           Tct.Its.Data.Types
 
 initialise :: Rules -> Sizebounds
 initialise = error "Sizebounds.initialise: yet not implemented"
+
+
+boundsOfVars :: Sizebounds -> (Int,Int) -> (M.Map Var Cost)
+boundsOfVars sbounds (t1,i1) = M.fromList [ (v,c) | ((t,i,v),c) <- M.assocs sbounds , t == t1, i == i1 ]
+
 
 -- sizebound for trivial SCCs
 sizebound :: TGraph -> LocalSizebounds -> RV -> Sizebounds -> Sizebounds

@@ -3,6 +3,8 @@ module Tct.Its.Data.TransitionGraph
   TGraph
   , estimateGraph 
   , predecessors
+  , sccs
+  , trivialSCCs
   ) where
 
 
@@ -26,4 +28,10 @@ functionSymbols r1 r2 = [ rhsIdx | (r,rhsIdx) <- zip (rhs r1) [0..], fun r == fu
 
 predecessors :: TGraph -> RuleId -> [(RuleId, Int)]
 predecessors = Gr.lpre
+
+sccs :: TGraph -> [[RuleId]]
+sccs = Gr.scc
+
+trivialSCCs :: TGraph -> [RuleId]
+trivialSCCs = concat . filter (\scc -> length scc == 1) . Gr.scc
 

@@ -69,6 +69,7 @@ import qualified Tct.Its.Data.Cost                   as C
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.Rule
 import qualified Tct.Its.Data.Timebounds             as TB
+import qualified Tct.Its.Data.Sizebounds             as SB
 
 
 --- Instances --------------------------------------------------------------------------------------------------------
@@ -95,12 +96,16 @@ mixed i = Proc polyRankProcessor{ shape = PI.Mixed i }
 
 
 data PolyRankProcessor = PolyRank
-  { useFarkas :: Bool -- implies linear shape
-  , shape     :: PI.Shape
+  { useFarkas      :: Bool -- implies linear shape
+  , withSizebounds :: Rules
+  , shape          :: PI.Shape
   } deriving Show
 
 polyRankProcessor :: PolyRankProcessor
-polyRankProcessor = PolyRank { useFarkas = False, shape = PI.Linear }
+polyRankProcessor = PolyRank 
+  { useFarkas      = False
+  , withSizebounds = []
+  , shape          = PI.Linear }
 
 type PolyInter   = PI.PolyInter Fun Int
 type IntPoly        = P.Polynomial Int Var
@@ -226,7 +231,8 @@ entscheide proc prob = do
   return $ mkOrder `fmap` res
   where
     bigAndM = liftM SMT.bigAnd . sequence
-    allrules = (_rules prob)
+    withSize = not $ null (withSizebounds proc)
+    allrules = if withSize then withSizebounds proc else (_rules prob)
     strictrules = TB.nonDefined (_timebounds prob)
     encode = P.fromViewWithM (\c -> SMT.fm `liftM` SMT.ivarm c) -- FIXME: incorporate restrict var for strongly linear
     absi = M.mapWithKey (curry (PI.mkInterpretation kind)) sig
@@ -251,11 +257,29 @@ entscheide proc prob = do
         (strictList, weakList) = partition (\(i,_) -> i `M.member` strictMap) allrules
         pint  = M.map (P.fromViewWith (inter M.!)) absi
         costs = C.poly $ inst (_startterm prob)
-        times = M.map (const costs) strictMap
+        times = 
+          if withSize 
+            then undefined
+            else M.map (const costs) strictMap
+
+
 
         inst = interpretTerm interpretFun interpretArg
         interpretFun f = P.substituteVariables (pint M.! f) . M.fromList . zip [PI.SomeIndeterminate 0..]
         interpretArg a = a
 
 
+computeBoundWithSize :: TB.Timebounds -> SB.Sizebounds -> (Fun -> C.Cost) -> Rules -> Rules -> C.Cost
+computeBoundWithSize tbounds sbounds prf allrules somerules = bigAdd $ do
+  l <- entries
+  (t,i) <- tos l
+  let 
+    innerTBound = prf l
+    outerTBound = tbounds `TB.boundOf` t
+    innerSBounds = SB.boundsOfVars sbounds (t,i)
+  return $ outerTBound `mul` C.compose innerTBound innerSBounds
+  where
+    entries = entryLocations somerules
+    tos     = toLocation allrules somerules
+    
 

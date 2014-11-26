@@ -58,6 +58,8 @@ type RV =
   Var    -- ^ Variable
   )
 
+type RV' = (Int, Int )
+
 type LocalSizebounds = M.Map RV (Cost, Growth)
 type Sizebounds = Bounds RV
 type Timebounds = Bounds Int

@@ -6,8 +6,10 @@ module Tct.Its.Data.Bounds
   , boundOf
   , totalBound
 
+  , insert
   , union
   , update
+  , updates
 
   , isDefined
   , defined
@@ -44,13 +46,18 @@ nonDefined = M.keys . M.filter (== unknown)
 defined :: Bounds k -> [k] 
 defined = M.keys . M.filter (/= unknown)
 
+insert :: Ord k => k -> Cost -> Bounds k -> Bounds k
+insert = M.insert
+
 
 union :: Ord k => Bounds k -> Bounds k -> Bounds k
-union = M.unionWith minimal
+union = M.union
 
 update :: Ord k => k -> Cost -> Bounds k -> Bounds k
 update r c = M.adjust (minimal c) r
 
+updates :: Ord k => Bounds k -> Bounds k -> Bounds k
+updates = M.unionWith minimal
 
 instance PP.Pretty k => PP.Pretty (Bounds k) where
   pretty = ppBounds PP.pretty

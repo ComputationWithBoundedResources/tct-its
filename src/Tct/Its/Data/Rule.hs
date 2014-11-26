@@ -15,6 +15,8 @@ module Tct.Its.Data.Rule
   , Rules
   , indices
   , Vars
+  , entryLocations
+  , toLocation
 
   -- TODO: move
   , ppSep
@@ -24,6 +26,7 @@ module Tct.Its.Data.Rule
 
 
 import Control.Monad (void)
+import qualified Data.Set as S
 import Control.Applicative
 import qualified Text.Parsec.Expr as PE
 
@@ -62,6 +65,16 @@ toGte = concatMap toGteA
 indices :: Rules -> [Int]
 indices = fst . unzip
 
+entryLocations :: Rules -> [Fun]
+entryLocations = S.toList . foldl (\fs iru -> entry iru `S.insert` fs) S.empty
+  where entry = fun . lhs . snd
+
+toLocation :: Rules -> Rules -> Fun -> [RV']
+toLocation allrules somerules f = error "toLocatoin not defined"
+  {-[ iru | iru <- irus, filter (==f) (zip [0..] iru]-}
+  {-where-}
+    {-exits (i,ru) = map fun . rhs . snd-}
+    {-irus = allrules L.\\ somerules-}
 
 
 
