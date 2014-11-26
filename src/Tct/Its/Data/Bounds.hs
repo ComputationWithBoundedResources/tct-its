@@ -3,7 +3,7 @@ module Tct.Its.Data.Bounds
   Bounds
   , empty
 
-  , bound 
+  , boundOf
   , totalBound
 
   , union
@@ -27,8 +27,8 @@ import Tct.Its.Data.Cost
 empty :: Bounds k
 empty = M.empty
 
-bound :: Ord k => k -> Bounds k -> Cost
-bound = flip (M.!)
+boundOf :: Ord k => Bounds k -> k -> Cost
+boundOf = (M.!)
 
 totalBound :: Bounds k -> Cost
 totalBound = bigAdd . M.elems
@@ -36,14 +36,13 @@ totalBound = bigAdd . M.elems
 
 isDefined :: Bounds k -> Bool
 isDefined = not . M.foldl' k False
-  where k b c = b || c == omega
+  where k b c = b || c == unknown
 
 nonDefined :: Bounds k -> [k]
-nonDefined = M.keys . M.filter (== omega)
+nonDefined = M.keys . M.filter (== unknown)
 
 defined :: Bounds k -> [k] 
-defined = M.keys . M.filter (/= omega)
-
+defined = M.keys . M.filter (/= unknown)
 
 
 union :: Ord k => Bounds k -> Bounds k -> Bounds k

@@ -2,23 +2,28 @@ module Tct.Its.Data.TransitionGraph
   (
   TGraph
   , estimateGraph 
+  , predecessors
   ) where
 
 
-import qualified Data.Graph.Inductive as G
+import qualified Data.Graph.Inductive as Gr
 
 import Tct.Its.Data.Types
-import Tct.Its.Data.Rule
 
-
+-- | Default estimation.
 estimateGraph :: Rules -> TGraph
 estimateGraph = estimateGraphWith functionSymbols
 
-estimateGraphWith :: (Rule -> Rule -> Bool) -> Rules -> TGraph
-estimateGraphWith f rs = G.mkUGraph (indices rs) es
-  where es = [ (n1, n2) | (n1,r1) <- rs, (n2,r2) <- rs, f r1 r2 ]
+-- rule labels actually used?
+
+estimateGraphWith :: (Rule -> Rule -> [Int])  -> Rules -> TGraph
+estimateGraphWith f rs = Gr.mkGraph rs es
+  where es  = [ (n1, n2, rhsIdx) | (n1,r1) <- rs, (n2,r2) <- rs, rhsIdx <- f r1 r2 ]
 
 -- | only compares function symbols
-functionSymbols :: Rule -> Rule -> Bool
-functionSymbols r1 r2 = or [ fun r == lfun | let lfun = fun (lhs r2), r <- rhs r1 ]
+functionSymbols :: Rule -> Rule -> [Int]
+functionSymbols r1 r2 = [ rhsIdx | (r,rhsIdx) <- zip (rhs r1) [0..], fun r == fun (lhs r2) ]
+
+predecessors :: TGraph -> RuleId -> [(RuleId, Int)]
+predecessors = Gr.lpre
 

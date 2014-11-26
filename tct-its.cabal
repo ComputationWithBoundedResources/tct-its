@@ -34,6 +34,7 @@ Library
     Tct.Its.Data
     Tct.Its.Data.Bounds
     Tct.Its.Data.Cost
+    Tct.Its.Data.Graph
     Tct.Its.Data.TransitionGraph
     Tct.Its.Data.ResultVariableGraph
     Tct.Its.Data.Problem

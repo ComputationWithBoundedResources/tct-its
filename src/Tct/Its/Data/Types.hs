@@ -1,7 +1,7 @@
 module Tct.Its.Data.Types where
 
 import qualified Data.Map.Strict as M
-import qualified Data.Graph.Inductive as G
+import qualified Data.Graph.Inductive as Gr
 
 import qualified Tct.Common.Polynomial as P
 
@@ -9,17 +9,17 @@ import qualified Tct.Common.Polynomial as P
 type Signature = M.Map Fun Int
 
 data Its = Its
-  { rules           :: Rules
-  , signature       :: Signature
-  , startterm       :: Term
+  { _rules           :: Rules
+  , _signature       :: Signature
+  , _startterm       :: Term
 
-  , tgraph          :: TGraph
-  , rvgraph         :: Maybe RVGraph
+  , _tgraph          :: TGraph
+  , _rvgraph         :: Maybe RVGraph
 
-  , timebounds      :: Timebounds
+  , _timebounds      :: Timebounds
 
-  , sizebounds      :: Maybe Sizebounds
-  , localSizebounds :: Maybe LocalSizebounds
+  , _sizebounds      :: Maybe Sizebounds
+  , _localSizebounds :: Maybe LocalSizebounds
   } deriving Show
 
 
@@ -58,15 +58,26 @@ type RV =
   Var    -- ^ Variable
   )
 
-type LocalSizebounds = Bounds RV
+type LocalSizebounds = M.Map RV (Cost, Growth)
 type Sizebounds = Bounds RV
 type Timebounds = Bounds Int
 
-type TGraph  = G.Gr () ()
-type RVGraph = G.Gr RV ()
+
+type RuleId = Int
+type RVId = Int
+
+type TGraph  = Gr.Gr Rule Int
+type RVGraph = Gr.Gr RV ()
 
 data Cost
-  = Omega
+  = Unknown
   | NPoly IPoly
   deriving (Eq, Show)
+
+data Growth 
+  = Max Int      -- ^ > x' = x; x' = y; x' = 3
+  | MaxPlus Int  -- ^ > x' = x + 1; x' = y + 3
+  | SumPlus Int  -- ^ > x' = y + z; but not x' = x + z
+  | Unbounded deriving (Eq,Ord,Show)
+
 

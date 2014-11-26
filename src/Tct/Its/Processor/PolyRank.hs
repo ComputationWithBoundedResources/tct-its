@@ -226,12 +226,12 @@ entscheide proc prob = do
   return $ mkOrder `fmap` res
   where
     bigAndM = liftM SMT.bigAnd . sequence
-    allrules = (rules prob)
-    strictrules = TB.nonDefined (timebounds prob)
+    allrules = (_rules prob)
+    strictrules = TB.nonDefined (_timebounds prob)
     encode = P.fromViewWithM (\c -> SMT.fm `liftM` SMT.ivarm c) -- FIXME: incorporate restrict var for strongly linear
     absi = M.mapWithKey (curry (PI.mkInterpretation kind)) sig
     kind = PI.ConstructorBased shp []
-    sig = signature prob
+    sig = _signature prob
     shp = if useFarkas proc then PI.Linear else shape proc
 
     interpret ebsi = interpretTerm interpretFun interpretArg
@@ -250,7 +250,7 @@ entscheide proc prob = do
         strictMap = M.mapKeysMonotonic unStrict $ M.filter (>0) stricts
         (strictList, weakList) = partition (\(i,_) -> i `M.member` strictMap) allrules
         pint  = M.map (P.fromViewWith (inter M.!)) absi
-        costs = C.poly $ inst (startterm prob)
+        costs = C.poly $ inst (_startterm prob)
         times = M.map (const costs) strictMap
 
         inst = interpretTerm interpretFun interpretArg

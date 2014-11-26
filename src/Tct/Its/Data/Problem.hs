@@ -35,11 +35,11 @@ import           Tct.Its.Data.Types
 
 -- | returns the domain; which is fixed for a problem
 domain :: Its -> Vars
-domain = concatMap P.variables . args . startterm
+domain = concatMap P.variables . args . _startterm
 
 
 closed :: Its -> Bool
-closed = TB.isDefined . timebounds
+closed = TB.isDefined . _timebounds
 
 ppRules :: Rules -> TB.Timebounds -> PP.Doc
 ppRules rs tb = 
@@ -53,12 +53,12 @@ ppRules rs tb =
     (is, rsl) = unzip rs
 
 updateTimebounds :: Its -> TB.Timebounds -> Its
-updateTimebounds prob tb = prob { timebounds = TB.union (timebounds prob) tb }
+updateTimebounds prob tb = prob { _timebounds = TB.union (_timebounds prob) tb }
 
 instance PP.Pretty Its where
   pretty prob = 
-    ppRules (rules prob) (timebounds prob)
-    PP.<$$> PP.text (show $ signature prob)
+    ppRules (_rules prob) (_timebounds prob)
+    PP.<$$> PP.text (show $ _signature prob)
 
 
 -- mode
@@ -73,23 +73,23 @@ itsMode = TctMode
   , modeAnswer          = answering }
 
 answering :: Return (ProofTree Its) -> SomeAnswer
-answering (Abort _)     = answer omega
+answering (Abort _)     = answer unknown
 answering (Continue pt) = answer $ case F.toList pt of
-  [prob] -> TB.totalBound (timebounds prob)
-  _      -> omega
+  [prob] -> TB.totalBound (_timebounds prob)
+  _      -> unknown
 
 initialise :: ([Fun], [Var], [Rule]) -> Its
 initialise ([fs],vs, rsl) = Its
-  { rules      = rs
-  , signature  = mkSignature rsl
+  { _rules      = rs
+  , _signature  = mkSignature rsl
 
-  , startterm  = Term fs (map P.variable vs)
-  , tgraph     = estimateGraph rs
-  , rvgraph    = Nothing 
+  , _startterm  = Term fs (map P.variable vs)
+  , _tgraph     = estimateGraph rsl
+  , _rvgraph    = Nothing 
 
-  , timebounds = TB.initialise rs
-  , sizebounds = Nothing
-  , localSizebounds = Nothing
+  , _timebounds = TB.initialise rs
+  , _sizebounds = Nothing
+  , _localSizebounds = Nothing
   }
   where rs = zip [0..] rsl
 initialise _ = error "Problem.initialise: not implemented: multiple start symbols"

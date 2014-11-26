@@ -13,5 +13,5 @@ import Tct.Its.Data.Cost
 import Tct.Its.Data.Bounds
 
 initialise :: Rules -> Timebounds
-initialise rs = M.fromList (zip (fst $ unzip rs) (repeat omega))
+initialise rs = M.fromList (zip (fst $ unzip rs) (repeat unknown))
 

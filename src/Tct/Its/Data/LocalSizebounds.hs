@@ -7,46 +7,58 @@
 -- should be computable as long we have linear bounds
 -- has to be computed only once
 
-module Tct.Its.Data.LocalSizebounds 
+
+module Tct.Its.Data.LocalSizebounds
   (
   LocalSizebounds
   , compute
-  , module Tct.Its.Data.Bounds 
+  -- * Queries
+  , lboundOf
+  , lgrowthOf
   ) where
 
-import Control.Monad (liftM, foldM)
-import qualified Data.Map.Strict as M
+import           Control.Monad         (foldM, liftM)
+import qualified Data.Map.Strict       as M
 
-import qualified SmtLib.Logic.Core                   as SMT
-import qualified SmtLib.Logic.Int                    as SMT
-import qualified SmtLib.SMT                          as SMT
-import qualified SmtLib.Solver                       as SMT
+import qualified SmtLib.Logic.Core     as SMT
+import qualified SmtLib.Logic.Int      as SMT
+import qualified SmtLib.SMT            as SMT
+import qualified SmtLib.Solver         as SMT
 
-import qualified Tct.Common.Polynomial               as P
+import qualified Tct.Common.Polynomial as P
 import           Tct.Common.Ring
-import qualified Tct.Common.SMT                      ()
+import qualified Tct.Common.SMT        ()
 
-import Tct.Its.Data.Cost
-import Tct.Its.Data.Rule
-import Tct.Its.Data.Bounds
-import Tct.Its.Data.Types
+import           Tct.Its.Data.Cost
+import           Tct.Its.Data.Rule
+import           Tct.Its.Data.Types
 
 
-type APoly = P.Polynomial SMT.Expr Var
+type APoly  = P.Polynomial SMT.Expr Var
 type IPolyV = P.PolynomialView Int Var
 
+
+lboundOf :: LocalSizebounds -> RV -> Cost
+lboundOf lbounds rv = fst (lbounds M.! rv)
+
+lgrowthOf :: LocalSizebounds -> RV -> Growth
+lgrowthOf lbounds rv = snd (lbounds M.! rv)
+
+
+-- FIXME: require strongly linear interpretations as all other do not fit in current Growth classes
+-- use linear programming for minimisation; check if localbound can be negative;
 compute :: Vars -> Rules -> IO LocalSizebounds
-compute vs = foldM k empty
+compute vs = foldM k M.empty
   where
-    k sbs ir = union sbs `liftM` compute' vs ir lpoly
+    k sbs ir = M.union sbs `liftM` compute' vs ir lpoly
     lpoly    = P.linear (const (1 :: Int)) vs
-    
+
 compute' :: Vars -> (Int,Rule) -> IPolyV -> IO LocalSizebounds
 compute' vs ir lpoly = M.fromList `liftM` mapM k (rvss vs ir)
   where k (rv,rpoly,cpolys) = entscheide lpoly rpoly cpolys >>= \c -> return (rv,c)
 
 rvss :: Vars -> (Int, Rule) -> [(RV, IPoly, [APoly])]
-rvss vs (ruleIdx, Rule _ rs cs) = 
+rvss vs (ruleIdx, Rule _ rs cs) =
   [ ((ruleIdx,rhsIdx,v),rpoly, cs')
     | (rhsIdx, r) <- zip [0..] rs, (v, rpoly) <- zip vs (args r) ]
   where cs' = [ P.mapCoefficients num' p | Gte p _ <- filterLinear (toGte cs) ]
@@ -54,11 +66,11 @@ rvss vs (ruleIdx, Rule _ rs cs) =
 num' :: Int -> SMT.Expr
 num' i = if i < 0 then SMT.nNeg (SMT.num (-i)) else SMT.num i
 
-instance (SMT.Decode m c a, Additive a, Eq a) 
+instance (SMT.Decode m c a, Additive a, Eq a)
   => SMT.Decode m (P.PolynomialView c Var) (P.Polynomial a Var) where
   decode = P.fromViewWithM SMT.decode
 
-entscheide :: IPolyV -> IPoly -> [APoly] -> IO Cost
+entscheide :: IPolyV -> IPoly -> [APoly] -> IO (Cost, Growth)
 entscheide lview rpoly cpolys = do
   res :: SMT.Sat IPoly <- SMT.solve SMT.minismt $ do
     SMT.setLogic "QF_NIA"
@@ -68,10 +80,10 @@ entscheide lview rpoly cpolys = do
       P.PolyV `liftM` mapM (\(_,m) -> SMT.ivar >>= \c' -> return (c',m)) ts
 
     let
-      interpretLhs = P.fromViewWith SMT.fm 
+      interpretLhs = P.fromViewWith SMT.fm
       interpretRhs = P.mapCoefficients num'
       absolute p = SMT.bigAnd [ c SMT..== SMT.zero | c <- P.coefficients p ]
-    
+
     let
       bounded = (interpretLhs apoly `sub` interpretRhs rpoly) `eliminate` cpolys
 
@@ -90,6 +102,6 @@ entscheide lview rpoly cpolys = do
   return $ mkCost res
   where
     mkCost res = case res of
-      SMT.Sat p -> poly p
-      _         -> omega
-        
+      SMT.Sat p -> let r = poly p in (r,growth r)
+      _         -> (unknown, Unbounded)
+
