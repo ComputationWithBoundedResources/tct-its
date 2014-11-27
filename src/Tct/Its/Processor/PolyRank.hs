@@ -48,8 +48,10 @@ module Tct.Its.Processor.PolyRank where
 import           Control.Monad                       (liftM)
 import           Control.Monad.Trans                 (liftIO)
 import           Data.List                           (partition)
+import           Data.Maybe                          (fromJust)
 import qualified Data.Map.Strict                     as M
 import qualified Data.Traversable                    as T (mapM)
+import qualified Data.Graph.Inductive                as Gr
 
 import qualified SmtLib.Logic.Core                   as SMT
 import qualified SmtLib.Logic.Int                    as SMT
@@ -152,10 +154,10 @@ instance Processor PolyRankProcessor where
   solve p prob
     | closed prob = return $ resultToTree p prob $ Fail (PolyRankProof Empty)
     | otherwise = do
-        res <- liftIO $ entscheide p prob
-        return . resultToTree p prob $ case res of
+        res  <- liftIO $ entscheide p prob'
+        return . resultToTree p prob' $ case res of
           SMT.Sat order ->
-            Success (Id $ updateTimebounds prob (times_ order)) (PolyRankProof $ Order order) (\(Id c) -> c)
+            Success (Id $ updateTimebounds prob' (times_ order)) (PolyRankProof $ Order order) (\(Id c) -> c)
           SMT.Error s -> Fail (PolyRankProof $ Inapplicable s)
           _ -> Fail (PolyRankProof $ Incompatible)
 
@@ -173,7 +175,7 @@ entscheide proc prob = do
     SMT.setLogic "QF_NIA"
     -- TODO: memoisation is here not used
     (ebsi,coefficientEncoder) <- SMT.memo $ PI.PolyInter `liftM` T.mapM encode absi
-    (_, strictVarEncoder) <- SMT.memo $ mapM  (SMT.snvarm . Strict) (indices allrules)
+    (_, strictVarEncoder) <- SMT.memo $ mapM  (SMT.snvarm . Strict) (indices somerules)
 
     let
       strict = SMT.fm . (strictVarEncoder M.!) . Strict
@@ -220,7 +222,7 @@ entscheide proc prob = do
         fm2 <- if useFarkas proc then boundedFarkas r else bounded r
         return (fm1 SMT..&& ((strict i SMT..> SMT.zero) SMT..==> fm2))
 
-      orderConstraint = [ order r | r <- allrules ]
+      orderConstraint = [ order r | r <- somerules ]
       rulesConstraint = [ strict i SMT..> SMT.zero | i <- strictrules ]
 
     SMT.assert =<< bigAndM orderConstraint
@@ -232,9 +234,14 @@ entscheide proc prob = do
   where
     bigAndM = liftM SMT.bigAnd . sequence
     withSize = not $ null (withSizebounds proc)
-    allrules = if withSize then withSizebounds proc else (_rules prob)
+    allrules = _irules prob
+    somerules 
+      | withSize  = withSizebounds proc
+      | otherwise = allrules
     strictrules = TB.nonDefined (_timebounds prob)
     encode = P.fromViewWithM (\c -> SMT.fm `liftM` SMT.ivarm c) -- FIXME: incorporate restrict var for strongly linear
+        {-| PI.restrict c = SMT.fm `liftM` SMT.sivarm c-}
+        {-| otherwise     = SMT.fm `liftM` SMT.nvarm c-}
     absi = M.mapWithKey (curry (PI.mkInterpretation kind)) sig
     kind = PI.ConstructorBased shp []
     sig = _signature prob
@@ -254,13 +261,14 @@ entscheide proc prob = do
       , times_  = times }
       where
         strictMap = M.mapKeysMonotonic unStrict $ M.filter (>0) stricts
-        (strictList, weakList) = partition (\(i,_) -> i `M.member` strictMap) allrules
+        (strictList, weakList) = partition (\(i,_) -> i `M.member` strictMap) somerules
         pint  = M.map (P.fromViewWith (inter M.!)) absi
-        costs = C.poly $ inst (_startterm prob)
-        times = 
-          if withSize 
-            then undefined
-            else M.map (const costs) strictMap
+        costs
+          | withSize = computeBoundWithSize (_timebounds prob) (fromJust $ _sizebounds prob) costf somerules allrules
+          | otherwise = C.poly (inst $ _startterm prob) 
+          where costf f = C.poly . inst $ Term f (args $ _startterm prob)
+          
+        times = M.map (const costs) strictMap
 
 
 

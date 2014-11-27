@@ -34,8 +34,10 @@ import           Tct.Its.Data.Rule
 import           Tct.Its.Data.Types
 
 
+type LocalSizebounds = M.Map RV (Cost, Growth)
+
 type APoly  = P.Polynomial SMT.Expr Var
-type IPolyV = P.PolynomialView Int Var
+type IPolyV = P.PView Int Var
 
 
 lboundOf :: LocalSizebounds -> RV -> Cost
@@ -67,7 +69,7 @@ num' :: Int -> SMT.Expr
 num' i = if i < 0 then SMT.nNeg (SMT.num (-i)) else SMT.num i
 
 instance (SMT.Decode m c a, Additive a, Eq a)
-  => SMT.Decode m (P.PolynomialView c Var) (P.Polynomial a Var) where
+  => SMT.Decode m (P.PView c Var) (P.Polynomial a Var) where
   decode = P.fromViewWithM SMT.decode
 
 entscheide :: IPolyV -> IPoly -> [APoly] -> IO (Cost, Growth)
@@ -76,8 +78,7 @@ entscheide lview rpoly cpolys = do
     SMT.setLogic "QF_NIA"
 
     apoly <- do
-      let P.PolyV ts = lview
-      P.PolyV `liftM` mapM (\(_,m) -> SMT.ivar >>= \c' -> return (c',m)) ts
+      mapM (\(_,m) -> SMT.ivar >>= \c' -> return (c',m)) lview
 
     let
       interpretLhs = P.fromViewWith SMT.fm

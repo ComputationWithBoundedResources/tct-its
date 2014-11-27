@@ -1,17 +1,21 @@
-module Tct.Its.Data.Timebounds 
+module Tct.Its.Data.Timebounds
   (
   Timebounds
   , initialise
-  , module Tct.Its.Data.Bounds 
+  , module Tct.Its.Data.Bounds
   ) where
 
 
-import qualified Data.Map.Strict as M
+import qualified Data.Map.Strict          as M
 
-import Tct.Its.Data.Types
-import Tct.Its.Data.Cost
-import Tct.Its.Data.Bounds
+import           Tct.Core.Common.SemiRing (one)
+import           Tct.Its.Data.Bounds
+import           Tct.Its.Data.Cost        (unknown)
+import           Tct.Its.Data.Types       (RuleId)
 
-initialise :: Rules -> Timebounds
-initialise rs = M.fromList (zip (fst $ unzip rs) (repeat unknown))
+type Timebounds = Bounds RuleId
+
+initialise :: [RuleId] -> [RuleId] -> Timebounds
+initialise ids = foldl (\tbounds' i -> M.insert i one tbounds') tbounds
+  where tbounds = M.fromList (zip ids (repeat unknown))
 

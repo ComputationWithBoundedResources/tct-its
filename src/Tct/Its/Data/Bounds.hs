@@ -25,6 +25,8 @@ import Tct.Core.Common.SemiRing (bigAdd)
 import Tct.Its.Data.Types
 import Tct.Its.Data.Cost
 
+type Bounds k = M.Map k Cost
+
 
 empty :: Bounds k
 empty = M.empty

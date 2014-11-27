@@ -50,6 +50,7 @@ Library
     mtl              >= 2.1 && < 2.2,
     base             == 4.*,
     fgl              == 5.5.*,
+    fgl-visualize    == 0.1.0.*,
     parsec           == 3.1.*,
 
     smtlib           == 0.*,

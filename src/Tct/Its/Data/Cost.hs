@@ -23,8 +23,18 @@ import qualified Tct.Core.Common.Pretty    as PP
 import qualified Tct.Common.Polynomial    as P
 import           Tct.Common.Ring
 
-import           Tct.Its.Data.Types
+import Tct.Its.Data.Types (IPoly, Var)
 
+data Cost
+  = Unknown
+  | NPoly IPoly
+  deriving (Eq, Show)
+
+data Growth 
+  = Max Int      -- ^ > x' = x; x' = y; x' = 3
+  | MaxPlus Int  -- ^ > x' = x + 1; x' = y + 3
+  | SumPlus Int  -- ^ > x' = y + z; but not x' = x + z
+  | Unbounded deriving (Eq,Ord,Show)
 
 ppCost :: Cost -> PP.Doc
 ppCost Unknown   = PP.char '?'
