@@ -4,6 +4,7 @@ module Tct.Its.Data.Sizebounds
   , initialise
   , boundsOfVars
 
+  , updateSizebounds
   , sizebound
   , sizebounds
   , module Tct.Its.Data.Bounds
@@ -17,7 +18,7 @@ import           Tct.Common.Ring
 import qualified Tct.Common.Polynomial as P
 
 import           Tct.Its.Data.ResultVariableGraph (RVGraph)
-import qualified Tct.Its.Data.ResultVariableGraph as RV
+import qualified Tct.Its.Data.ResultVariableGraph as RVG
 import           Tct.Its.Data.TransitionGraph (TGraph)
 import qualified Tct.Its.Data.TransitionGraph as TG
 import           Tct.Its.Data.Cost
@@ -27,15 +28,24 @@ import           Tct.Its.Data.LocalSizebounds (LocalSizebounds)
 import qualified Tct.Its.Data.LocalSizebounds as LB
 import           Tct.Its.Data.Types
 
+import Debug.Trace
+
 type Sizebounds = Bounds RV
 
-initialise :: Rules -> Sizebounds
-initialise = error "Sizebounds.initialise: yet not implemented"
+initialise :: LocalSizebounds -> Sizebounds
+initialise lbounds = foldl (\acc k -> M.insert k Unknown acc) M.empty (M.keys lbounds)
+
+updateSizebounds :: TGraph -> RVGraph -> Timebounds -> Sizebounds -> LocalSizebounds -> Sizebounds
+updateSizebounds tgraph rvgraph tbounds sbounds lbounds = foldl k sbounds (RVG.sccs rvgraph)
+  where
+    k nsbounds scc = case scc of
+      RVG.Trivial rv    -> sizebound tgraph lbounds rv nsbounds
+      RVG.NonTrivial rvs -> sizebounds tbounds nsbounds lbounds rvgraph rvs
+
 
 
 boundsOfVars :: Sizebounds -> (Int,Int) -> M.Map Var Cost
 boundsOfVars sbounds (t1,i1) = M.fromList [ (v,c) | ((t,i,v),c) <- M.assocs sbounds , t == t1, i == i1 ]
-
 
 -- sizebound for trivial SCCs
 sizebound :: TGraph -> LocalSizebounds -> RV -> Sizebounds -> Sizebounds
@@ -50,18 +60,20 @@ sizebound tgraph lbounds rv@(t,_,_) sbounds = update rv sbound sbounds
     preds       = TG.predecessors tgraph t
 
 cyclicDependencies :: RVGraph -> [RV] -> RV -> [Var]
-cyclicDependencies rvgraph scc rv = L.nub [ v | (_,_,v) <- RV.predecessors rvgraph rv `L.intersect` scc ]
+cyclicDependencies rvgraph scc rv = let r = L.nub [ v | (_,_,v) <- RVG.predecessors rvgraph rv `L.intersect` scc ] in traceShow r r
 
 dependencyConstraint :: RVGraph -> [RV] -> RV -> Bool
-dependencyConstraint rvgraph rvs rv = length (cyclicDependencies rvgraph rvs rv) <= 1
+dependencyConstraint a b c | trace ("### dep:") False = undefined
+dependencyConstraint rvgraph rvs rv = let r = length (cyclicDependencies rvgraph rvs rv) <= 1 in traceShow r r 
 
 sizebounds :: Timebounds -> Sizebounds -> LocalSizebounds -> RVGraph -> [RV] -> Sizebounds
+sizebounds t s l r scc | trace ("### sizebounds: " ++ show scc) False = undefined
 sizebounds tbounds sbounds lbounds rvgraph scc 
-  | not (null unbounds)                                   = sbounds
-  | not (all (dependencyConstraint rvgraph scc . fst) sumpluss) = sbounds
-  | otherwise = foldl (\sbounds' rv -> update rv cost sbounds') sbounds scc
+  | not (null unbounds)                                         = trace "null unbounds" sbounds
+  | not (all (dependencyConstraint rvgraph scc . fst) sumpluss) = trace "cyclic" sbounds
+  | otherwise = trace "comp" $ foldl (\sbounds' rv -> update rv cost sbounds') sbounds scc
   where 
-    (maxs,maxpluss,sumpluss,unbounds) = classify lbounds scc
+    (maxs,maxpluss,sumpluss,unbounds) = let r = classify lbounds scc in traceShow r r
     cost = sizeboundOf tbounds sbounds lbounds rvgraph scc maxs maxpluss sumpluss
 
 
@@ -84,12 +96,12 @@ sizeboundOf tbounds sbounds lbounds rvgraph scc ms mps sps=
   `add` sizeboundSumPlus tbounds sbounds lbounds rvgraph scc sps
 
 sizeboundsIncoming :: Sizebounds -> RVGraph -> [RV] -> [Cost]
-sizeboundsIncoming sbounds rvgraph = map (sbounds `boundOf`) . RV.incoming rvgraph
+sizeboundsIncoming sbounds rvgraph = map (sbounds `boundOf`) . RVG.incoming rvgraph
 
 sizeboundMax :: Sizebounds -> RVGraph -> [RV] -> [(RV,Int)] -> Cost
 sizeboundMax sbounds rvgraph scc ms = foldl1 maximal (constBound: incomBounds)
   where 
-    constBound = poly . P.constant . maximum . snd $ unzip ms
+    constBound = poly . P.constant . maximum . (0:) . snd $ unzip ms
     incomBounds = sizeboundsIncoming sbounds rvgraph scc
 
 -- | 
@@ -103,5 +115,6 @@ sizeboundSumPlus tbounds sbounds lbounds rvgraph scc sps = bigAdd $ map k sps
   where 
     k (rv@(t,_,_),i) = (tbounds `boundOf` t) `mul` ( poly (P.constant i) `add` bigAdd (map (f rv) (vars rv)))
     vars rv = activeVariables (lbounds `LB.lboundOf` rv) L.\\ cyclicDependencies rvgraph scc rv
-    f rv v = foldl maximal zero [ sbounds `boundOf` rv' | rv'@(_,_,v') <- RV.predecessors rvgraph rv, v == v' ]
+    f rv v = foldl maximal zero [ sbounds `boundOf` rv' | rv'@(_,_,v') <- RVG.predecessors rvgraph rv, v == v' ]
+
 

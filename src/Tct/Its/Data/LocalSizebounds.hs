@@ -19,12 +19,14 @@ module Tct.Its.Data.LocalSizebounds
 
 import           Control.Monad         (foldM, liftM)
 import qualified Data.Map.Strict       as M
+import qualified Data.List       as L
 
 import qualified SmtLib.Logic.Core     as SMT
 import qualified SmtLib.Logic.Int      as SMT
 import qualified SmtLib.SMT            as SMT
 import qualified SmtLib.Solver         as SMT
 
+import qualified Tct.Core.Common.Pretty     as PP
 import qualified Tct.Common.Polynomial as P
 import           Tct.Common.Ring
 import qualified Tct.Common.SMT        ()
@@ -74,11 +76,24 @@ instance (SMT.Decode m c a, Additive a, Eq a)
 
 entscheide :: IPolyV -> IPoly -> [APoly] -> IO (Cost, Growth)
 entscheide lview rpoly cpolys = do
+  res <- entscheide' lview rpoly cpolys True
+  case res of
+    SMT.Sat p -> return $ let r = poly p in (r,growth r)
+    _         -> do 
+      res' <- entscheide' lview rpoly cpolys True
+      return $ case res' of 
+        SMT.Sat p -> let r = poly p in (r,growth r)
+        _         -> (Unknown,Unbounded)
+
+  -- TODO: alternative instance for sat
+
+
+entscheide' :: IPolyV -> IPoly -> [APoly] -> Bool -> IO (SMT.Sat IPoly)
+entscheide' lview rpoly cpolys withZeroConstant = do
   res :: SMT.Sat IPoly <- SMT.solve SMT.minismt $ do
     SMT.setLogic "QF_NIA"
 
-    apoly <- do
-      mapM (\(_,m) -> SMT.ivar >>= \c' -> return (c',m)) lview
+    apoly <- mapM (\(_,m) -> SMT.ivar >>= \c' -> return (c',m)) lview
 
     let
       interpretLhs = P.fromViewWith SMT.fm
@@ -86,7 +101,12 @@ entscheide lview rpoly cpolys = do
       absolute p = SMT.bigAnd [ c SMT..== SMT.zero | c <- P.coefficients p ]
 
     let
-      bounded = (interpretLhs apoly `sub` interpretRhs rpoly) `eliminate` cpolys
+      linst
+        | withZeroConstant = fst (P.splitConstantValue pl)
+        | otherwise        = pl
+        where pl = interpretLhs apoly
+      bounded = (linst `sub` interpretRhs rpoly) `eliminate` cpolys
+
 
       eliminate ply css = do
         let
@@ -99,10 +119,22 @@ entscheide lview rpoly cpolys = do
         return $ absolute (p1 `sub` p2) SMT..&& (pc1 SMT..>= pc2)
 
     SMT.assert =<< bounded
+
     return $ SMT.decode apoly
-  return $ mkCost res
+  return res
+
+
+-- pretty printing
+
+ppLocalSizebounds :: Vars -> LocalSizebounds -> PP.Doc
+ppLocalSizebounds vars lbounds = PP.table [(PP.AlignLeft, ppc) | c <- cols, let ppc = map ppEntry c ] 
   where
-    mkCost res = case res of
-      SMT.Sat p -> let r = poly p in (r,growth r)
-      _         -> (unknown, Unbounded)
+    ppEntry (rv,(lbound,lgrowth)) = PP.tupled [PP.pretty rv, PP.pretty lbound, PP.pretty lgrowth]
+    cols = mkPartition [] vars (M.assocs lbounds)
+    mkPartition acc [] _       = reverse acc
+    mkPartition acc (v:vs) es  = mkPartition (a:acc) vs es'
+      where (a,es') = L.partition (\((_,_,v'),_) -> v == v') es
+
+instance PP.Pretty (Vars, LocalSizebounds) where
+  pretty = uncurry ppLocalSizebounds
 

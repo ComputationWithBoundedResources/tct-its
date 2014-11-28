@@ -6,11 +6,13 @@ module Tct.Its.Data.TransitionGraph
   -- * Queries
   , initialRules 
   , predecessors
+  , incoming
   , sccs
   , trivialSCCs
   ) where
 
 
+import qualified Data.Set as S
 import qualified Data.Graph.Inductive as Gr
 
 import qualified Tct.Core.Common.Pretty as PP
@@ -42,7 +44,7 @@ functionSymbols r1 r2 = [ cid | (cid,r) <- zip [0..] (rhs r1), fun r == fun (lhs
 initialRules :: TGraph -> [RuleId]
 initialRules tgraph = filter (\n -> Gr.indeg tgraph n == 0) (Gr.nodes tgraph)
 
-predecessors :: TGraph -> RuleId -> [(RuleId, Int)]
+predecessors :: TGraph -> RuleId -> [RV']
 predecessors = Gr.lpre
 
 sccs :: TGraph -> [[RuleId]]
@@ -56,4 +58,10 @@ trivialSCCs tgraph = concat . filter acyclic  $ Gr.scc tgraph
 
 instance PP.Pretty TGraph where
   pretty = PP.pretty . lines . Gr.prettify
-  
+
+incoming :: TGraph -> [RuleId] -> [RV']
+incoming tgraph somerules = S.toList $ S.filter ((`S.member` ous) . fst) ins
+  where 
+    ins = S.unions $ map (S.fromList . Gr.lpre tgraph) somerules
+    ous = S.fromList somerules
+

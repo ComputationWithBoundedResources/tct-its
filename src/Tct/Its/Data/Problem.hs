@@ -3,6 +3,7 @@ module Tct.Its.Data.Problem
 
   , validate
   , initialiseSizebounds
+  , computeSizebounds
   , computeLocalSizebounds
 
   --, rvss
@@ -37,6 +38,7 @@ import           Tct.Its.Data.ResultVariableGraph (RVGraph)
 import qualified Tct.Its.Data.ResultVariableGraph as RVG (compute)
 import           Tct.Its.Data.Rule
 import           Tct.Its.Data.Sizebounds          (Sizebounds)
+import qualified Tct.Its.Data.Sizebounds          as SB (initialise, updateSizebounds)
 import           Tct.Its.Data.Timebounds          (Timebounds)
 import qualified Tct.Its.Data.Timebounds          as TB
 import           Tct.Its.Data.TransitionGraph     (TGraph, estimateGraph, initialRules)
@@ -89,28 +91,56 @@ initialiseSizebounds prob = case _localSizebounds prob of
       lbounds <- LB.compute (domain prob) (_irules prob)
       let
         rvgraph = RVG.compute (_tgraph prob) lbounds
-        sbounds  = undefined
+        sbounds = SB.initialise lbounds
       liftIO $ writeFile "/tmp/rvgraph.dot" $ maybe "Gr" (Gr.showDot . Gr.fglToDot) (_rvgraph prob)
       return $ prob {_localSizebounds = Just lbounds, _rvgraph = Just rvgraph, _sizebounds = Just sbounds}
 
 data LocalSizeboundsProcessor = LocalSizeboundsProc deriving Show
 
-data LocalSizeboundsProof = LocalSizeboundsProof LocalSizebounds RVGraph
+data LocalSizeboundsProof = LocalSizeboundsProof (Vars, LocalSizebounds) RVGraph
   deriving Show
 
 instance PP.Pretty LocalSizeboundsProof where
-  pretty= const $ PP.text "LocalSizebounds generated; rvgraph"
+  pretty (LocalSizeboundsProof vlbounds _) = 
+    PP.text "LocalSizebounds generated; rvgraph"
+    PP.<$$> PP.indent 2 (PP.pretty vlbounds)
 
 instance Processor LocalSizeboundsProcessor where
   type ProofObject LocalSizeboundsProcessor = LocalSizeboundsProof
-  type Problem LocalSizeboundsProcessor = Its
+  type Problem LocalSizeboundsProcessor     = Its
   solve p prob = do
     nprob <- liftIO $ initialiseSizebounds prob
-    let pproof = LocalSizeboundsProof (fromJust $ _localSizebounds nprob) (fromJust $ _rvgraph nprob)
+    let pproof = LocalSizeboundsProof (domain prob, fromJust $ _localSizebounds nprob) (fromJust $ _rvgraph nprob)
     return $ resultToTree p prob $ Success (Id nprob) pproof (\(Id c) -> c)
 
 computeLocalSizebounds :: Strategy Its
 computeLocalSizebounds = Proc LocalSizeboundsProc
+
+computeSizebounds :: Strategy Its
+computeSizebounds = Proc SizeboundsProc
+
+data SizeboundsProcessor = SizeboundsProc deriving Show
+
+data SizeboundsProof = SizeboundsProof deriving Show
+
+instance PP.Pretty SizeboundsProof where
+  pretty = const (PP.text "Sizebounds computed.")
+
+instance Processor SizeboundsProcessor where
+  type ProofObject SizeboundsProcessor = SizeboundsProof
+  type Problem SizeboundsProcessor     = Its
+  solve p prob = return $ resultToTree p prob $ Success (Id nprob) SizeboundsProof (\(Id c) -> c)
+    where nprob = updateSizebounds prob
+
+updateSizebounds :: Its -> Its
+updateSizebounds prob = prob {_sizebounds = Just sbounds'} where
+  sbounds' = SB.updateSizebounds 
+    (_tgraph prob) 
+    (fromJust $ _rvgraph prob) 
+    (_timebounds prob) 
+    (fromJust $ _sizebounds prob)  
+    (fromJust $ _localSizebounds prob)
+  
 
 validate :: Rules -> Bool
 validate = const True
@@ -146,6 +176,7 @@ instance PP.Pretty Its where
     pp "Rules:" (ppRules (_irules prob) (_timebounds prob))
     PP.<$$> pp "Signature:" (PP.pretty $ _signature prob)
     PP.<$$> pp "Flow Graph:" (PP.pretty (_tgraph prob))
+    PP.<$$> pp "Sizebounds:" (PP.pretty (_sizebounds prob))
     where pp st p = PP.text st PP.<$$> PP.indent 2 p
 
 

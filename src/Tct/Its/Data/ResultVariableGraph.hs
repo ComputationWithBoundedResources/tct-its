@@ -4,14 +4,14 @@ module Tct.Its.Data.ResultVariableGraph
   , compute  
   , predecessors
   , incoming
+  , sccs
+  , SCC (..)
   ) where
 
 import Data.Maybe (fromJust)
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
 import qualified Data.Graph.Inductive as Gr
-import qualified Data.Graph.Inductive.Query as Gr
-import qualified Data.Graph.Inductive.NodeMap as Gr
 
 import Tct.Its.Data.Types
 import Tct.Its.Data.TransitionGraph (TGraph)
@@ -41,3 +41,18 @@ incoming rvgraph rvs = preds L.\\ rvs
     predids = L.nub $ concatMap (Gr.pre rvgraph) rvids
     preds = map (fromJust . Gr.lab rvgraph) predids
 
+
+data SCC a = Trivial a | NonTrivial [a]
+
+instance Functor SCC where
+  f `fmap` Trivial a     = Trivial (f a)
+  f `fmap` NonTrivial as = NonTrivial (map f as)
+
+-- TODO: check if in topological order
+sccs :: RVGraph -> [SCC RV]
+sccs rvgraph = map (fmap (fromJust . Gr.lab rvgraph) . isTrivial) (Gr.scc rvgraph)
+  where 
+    isTrivial [s] 
+      | s `elem` Gr.suc rvgraph s = NonTrivial [s]
+      | otherwise                 = Trivial s
+    isTrivial scc = NonTrivial scc
