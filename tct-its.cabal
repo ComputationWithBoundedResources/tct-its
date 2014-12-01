@@ -42,6 +42,7 @@ Library
     Tct.Its.Data.Timebounds
     Tct.Its.Data.Types
     Tct.Its.Data.LocalSizebounds
+    Tct.Its.Processor.Sizebounds
     Tct.Its.Processor.PolyRank
     Tct.Its.Processor.KnowledgePropagation
     Tct.Its.Processor.Empty
