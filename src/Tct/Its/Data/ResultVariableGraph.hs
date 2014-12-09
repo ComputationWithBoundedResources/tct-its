@@ -32,7 +32,12 @@ compute tgraph lbounds = Gr.mkGraph ns es
       r1 `elem` Gr.pre tgraph r2
       && v1 `elem` activeVariables (lbounds `lboundOf` rv)
 
-predecessors = undefined
+predecessors :: RVGraph -> RV -> [RV]
+predecessors rvgraph rv = preds
+  where
+    rvid    = fst $ Gr.mkNode_ (Gr.fromGraph rvgraph) rv
+    predids = (Gr.pre rvgraph) rvid
+    preds = map (fromJust . Gr.lab rvgraph) predids
 
 incoming :: RVGraph -> [RV] -> [RV]
 incoming rvgraph rvs = preds L.\\ rvs

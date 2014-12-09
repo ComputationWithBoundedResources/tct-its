@@ -60,7 +60,7 @@ instance PP.Pretty TGraph where
   pretty = PP.pretty . lines . Gr.prettify
 
 incoming :: TGraph -> [RuleId] -> [RV']
-incoming tgraph somerules = S.toList $ S.filter ((`S.member` ous) . fst) ins
+incoming tgraph somerules = S.toList $ S.filter ((`S.notMember` ous) . fst) ins
   where 
     ins = S.unions $ map (S.fromList . Gr.lpre tgraph) somerules
     ous = S.fromList somerules

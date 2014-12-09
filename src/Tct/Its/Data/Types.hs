@@ -1,6 +1,7 @@
 module Tct.Its.Data.Types where
 
 import qualified Data.Map.Strict as M
+import qualified Data.List as L
 
 import qualified Tct.Common.Polynomial as P
 import qualified Tct.Core.Common.Pretty as PP
@@ -51,4 +52,22 @@ type RV' = (Int, Int )
 
 type RuleId = Int
 type ComId = Int
+
+
+
+
+ppRV :: RV -> [PP.Doc]
+ppRV (t,i,v) = [PP.char '<', PP.int t, PP.comma, PP.int i, PP.comma, PP.string v, PP.char '>']
+
+ppRVs :: Vars -> [(RV, a)] -> (a -> [PP.Doc]) -> PP.Doc
+ppRVs vars assocs ppA = PP.table (concatMap ppCol cols)
+  where
+    ppCol col = zip (repeat PP.AlignRight) (L.transpose (map ppEntry col)) 
+    ppEntry (rv,a) = PP.lparen : ppRV rv ++ (comma :ppA a ++ [PP.rparen, PP.space])
+    comma = PP.comma PP.<> PP.space
+
+    cols = mkPartition [] vars assocs
+    mkPartition acc [] _       = reverse acc
+    mkPartition acc (v:vs) es  = mkPartition (a:acc) vs es'
+      where (a,es') = L.partition (\((_,_,v'),_) -> v == v') es
 

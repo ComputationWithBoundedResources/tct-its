@@ -18,8 +18,8 @@ module Tct.Its.Data.LocalSizebounds
   ) where
 
 import           Control.Monad         (foldM, liftM)
+import           Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict       as M
-import qualified Data.List       as L
 
 import qualified SmtLib.Logic.Core     as SMT
 import qualified SmtLib.Logic.Int      as SMT
@@ -43,10 +43,12 @@ type IPolyV = P.PView Int Var
 
 
 lboundOf :: LocalSizebounds -> RV -> Cost
-lboundOf lbounds rv = fst (lbounds M.! rv)
+lboundOf lbounds rv = fst (error err `fromMaybe` M.lookup rv lbounds)
+  where err = "Tct.Its.Data.LocalSizebounds.lboundOf: key '" ++ show rv ++ "' not defined."
 
 lgrowthOf :: LocalSizebounds -> RV -> Growth
-lgrowthOf lbounds rv = snd (lbounds M.! rv)
+lgrowthOf lbounds rv = snd (error err `fromMaybe` M.lookup rv lbounds)
+  where err = "Tct.Its.Data.LocalSizebounds.lgrowthOf: key '" ++ show rv ++ "' not defined."
 
 
 -- FIXME: require strongly linear interpretations as all other do not fit in current Growth classes
@@ -76,24 +78,22 @@ instance (SMT.Decode m c a, Additive a, Eq a)
 
 entscheide :: IPolyV -> IPoly -> [APoly] -> IO (Cost, Growth)
 entscheide lview rpoly cpolys = do
-  res <- entscheide' lview rpoly cpolys True
+  res <- entscheide' lview rpoly cpolys False
   case res of
-    SMT.Sat p -> return $ let r = poly p in (r,growth r)
+    SMT.Sat (lp,ap) -> return $ let r = poly lp `maximal` poly ap in (r,growth r)
     _         -> do 
-      res' <- entscheide' lview rpoly cpolys True
+      res' <- entscheide' lview rpoly cpolys False
       return $ case res' of 
-        SMT.Sat p -> let r = poly p in (r,growth r)
+        SMT.Sat (lp,ap) -> let r = poly lp `maximal` poly ap in (r,growth r)
         _         -> (Unknown,Unbounded)
 
   -- TODO: alternative instance for sat
 
 
-entscheide' :: IPolyV -> IPoly -> [APoly] -> Bool -> IO (SMT.Sat IPoly)
+entscheide' :: IPolyV -> IPoly -> [APoly] -> Bool -> IO (SMT.Sat (IPoly,IPoly))
 entscheide' lview rpoly cpolys withZeroConstant = do
-  res :: SMT.Sat IPoly <- SMT.solve SMT.minismt $ do
-    SMT.setLogic "QF_NIA"
-
-    apoly <- mapM (\(_,m) -> SMT.ivar >>= \c' -> return (c',m)) lview
+  res :: SMT.Sat (IPoly,IPoly) <- SMT.solve SMT.minismt $ do
+    SMT.setLogic "QF_LIA"
 
     let
       interpretLhs = P.fromViewWith SMT.fm
@@ -101,13 +101,7 @@ entscheide' lview rpoly cpolys withZeroConstant = do
       absolute p = SMT.bigAnd [ c SMT..== SMT.zero | c <- P.coefficients p ]
 
     let
-      linst
-        | withZeroConstant = fst (P.splitConstantValue pl)
-        | otherwise        = pl
-        where pl = interpretLhs apoly
-      bounded = (linst `sub` interpretRhs rpoly) `eliminate` cpolys
-
-
+      rinst = interpretRhs rpoly
       eliminate ply css = do
         let
           nvar' = SMT.fm `liftM` SMT.nvar
@@ -118,22 +112,26 @@ entscheide' lview rpoly cpolys withZeroConstant = do
           (p2,pc2) = P.splitConstantValue (bigAdd cs2)
         return $ absolute (p1 `sub` p2) SMT..&& (pc1 SMT..>= pc2)
 
-    SMT.assert =<< bounded
+    -- upper bound 
+    uapoly <- mapM (\(_,m) -> SMT.ivar >>= \c' -> return (c',m)) lview
+    let ubounded = (interpretLhs uapoly `sub` rinst) `eliminate` (cpolys)
+    
+    -- lower bound
+    lapoly <- mapM (\(_,m) -> SMT.ivar >>= \c' -> return (c',m)) lview
+    let lbounded = (rinst `sub` interpretLhs lapoly) `eliminate` (cpolys)
 
-    return $ SMT.decode apoly
+    SMT.assert =<< ubounded
+    SMT.assert =<< lbounded
+
+    return $ SMT.decode (lapoly, uapoly)
   return res
 
 
--- pretty printing
 
 ppLocalSizebounds :: Vars -> LocalSizebounds -> PP.Doc
-ppLocalSizebounds vars lbounds = PP.table [(PP.AlignLeft, ppc) | c <- cols, let ppc = map ppEntry c ] 
-  where
-    ppEntry (rv,(lbound,lgrowth)) = PP.tupled [PP.pretty rv, PP.pretty lbound, PP.pretty lgrowth]
-    cols = mkPartition [] vars (M.assocs lbounds)
-    mkPartition acc [] _       = reverse acc
-    mkPartition acc (v:vs) es  = mkPartition (a:acc) vs es'
-      where (a,es') = L.partition (\((_,_,v'),_) -> v == v') es
+ppLocalSizebounds vars lbounds = ppRVs vars (M.assocs lbounds) ppLbound
+  where ppLbound (lbound, lgrowth)  = [PP.pretty lbound, PP.comma, PP.space, PP.pretty lgrowth]
+  
 
 instance PP.Pretty (Vars, LocalSizebounds) where
   pretty = uncurry ppLocalSizebounds

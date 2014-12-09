@@ -142,6 +142,7 @@ pPoly = PE.buildExpressionParser table poly PR.<?> "poly"
 -- f([poly])
 pTerm :: Parser Term
 pTerm = (Term <$> PR.identifier <*> PR.parens (pPoly `PR.sepBy` PR.symbol ",")) PR.<?> "term"
+
   
 -- Com_nat([terms])
 pTerms :: Parser [Term]
@@ -169,5 +170,5 @@ pConstraint = do
   PR.<|> return []
 
 pRule :: Parser Rule
-pRule = (Rule <$> pTerm <*> (pSep *> pTerms) <*> pConstraint) PR.<?> "rule"
+pRule = (Rule <$> pTerm <*> (pSep *> (pTerms <|> (:[]) <$> pTerm)) <*> pConstraint) PR.<?> "rule"
 

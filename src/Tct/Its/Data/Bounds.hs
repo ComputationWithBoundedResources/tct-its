@@ -18,11 +18,11 @@ module Tct.Its.Data.Bounds
 
 
 import qualified Data.Map.Strict as M
+import           Data.Maybe (fromMaybe)
 
 import qualified Tct.Core.Common.Pretty as PP
 import Tct.Core.Common.SemiRing (bigAdd)
 
-import Tct.Its.Data.Types
 import Tct.Its.Data.Cost
 
 type Bounds k = M.Map k Cost
@@ -31,8 +31,9 @@ type Bounds k = M.Map k Cost
 empty :: Bounds k
 empty = M.empty
 
-boundOf :: Ord k => Bounds k -> k -> Cost
-boundOf = (M.!)
+boundOf :: (Ord k, Show k) => Bounds k -> k -> Cost
+boundOf bounds k = error err `fromMaybe` M.lookup k bounds
+  where err = "Tct.Its.Data.Bounds.boundOf: key '" ++ show k ++ "' not defined."
 
 totalBound :: Bounds k -> Cost
 totalBound = bigAdd . M.elems

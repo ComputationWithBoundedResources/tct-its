@@ -14,6 +14,8 @@ import qualified Data.Map.Strict as M
 import qualified Data.List as L (intersect, nub, (\\))
 
 
+import qualified Tct.Core.Common.Pretty as PP
+
 import           Tct.Common.Ring
 import qualified Tct.Common.Polynomial as P
 
@@ -63,11 +65,9 @@ cyclicDependencies :: RVGraph -> [RV] -> RV -> [Var]
 cyclicDependencies rvgraph scc rv = let r = L.nub [ v | (_,_,v) <- RVG.predecessors rvgraph rv `L.intersect` scc ] in traceShow r r
 
 dependencyConstraint :: RVGraph -> [RV] -> RV -> Bool
-dependencyConstraint a b c | trace ("### dep:") False = undefined
 dependencyConstraint rvgraph rvs rv = let r = length (cyclicDependencies rvgraph rvs rv) <= 1 in traceShow r r 
 
 sizebounds :: Timebounds -> Sizebounds -> LocalSizebounds -> RVGraph -> [RV] -> Sizebounds
-sizebounds t s l r scc | trace ("### sizebounds: " ++ show scc) False = undefined
 sizebounds tbounds sbounds lbounds rvgraph scc 
   | not (null unbounds)                                         = trace "null unbounds" sbounds
   | not (all (dependencyConstraint rvgraph scc . fst) sumpluss) = trace "cyclic" sbounds
@@ -117,4 +117,9 @@ sizeboundSumPlus tbounds sbounds lbounds rvgraph scc sps = bigAdd $ map k sps
     vars rv = activeVariables (lbounds `LB.lboundOf` rv) L.\\ cyclicDependencies rvgraph scc rv
     f rv v = foldl maximal zero [ sbounds `boundOf` rv' | rv'@(_,_,v') <- RVG.predecessors rvgraph rv, v == v' ]
 
+ppSizebounds :: Vars -> Sizebounds -> PP.Doc
+ppSizebounds vars sbounds = ppRVs vars (M.assocs sbounds) (\sbound -> [PP.pretty sbound])
+
+instance PP.Pretty (Vars,Sizebounds) where
+  pretty = uncurry ppSizebounds
 

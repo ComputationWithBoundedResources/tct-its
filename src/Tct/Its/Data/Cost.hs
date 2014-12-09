@@ -72,7 +72,9 @@ maximal c1 c2 = case compareCost c1 c2 of
   Just EQ -> c1
   Just GT -> c1
   Just LT -> c2
-  _ -> c1 `cadd` c2 -- FIXME: very rough bound
+  Nothing -> case (c1,c2) of
+    (NPoly p1, NPoly p2) -> NPoly $ P.zipCoefficientsWith max p1 p2
+    _                    -> c1 `cadd` c2
 
 cadd :: Cost -> Cost -> Cost
 cadd Unknown _             = Unknown
@@ -93,7 +95,7 @@ instance Multiplicative Cost where
   mul = cmul
 
 activeVariables :: Cost -> [Var]
-activeVariables Unknown     = []
+activeVariables Unknown   = []
 activeVariables (NPoly p) = P.variables p
 
 compose :: Cost -> M.Map Var Cost -> Cost

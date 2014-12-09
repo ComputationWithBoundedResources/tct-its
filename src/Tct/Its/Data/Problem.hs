@@ -2,9 +2,6 @@ module Tct.Its.Data.Problem
   ( Its (..)
 
   , validate
-  , initialiseSizebounds
-  , computeSizebounds
-  , computeLocalSizebounds
 
   --, rvss
   , domain
@@ -16,11 +13,10 @@ module Tct.Its.Data.Problem
 
 
 import           Control.Monad                    (void)
-import           Control.Monad.Trans              (liftIO)
 import qualified Data.Foldable                    as F (toList)
-import qualified Data.Graph.Inductive.Dot         as Gr
+import qualified Data.List                        as L (find)
 import qualified Data.Map                         as M
-import           Data.Maybe                       (fromJust)
+import           Data.Maybe                       (fromMaybe)
 
 import           Tct.Core.Common.Error            (TctError (..))
 import qualified Tct.Core.Common.Parser           as PR
@@ -33,12 +29,9 @@ import qualified Tct.Common.Polynomial            as P
 
 import           Tct.Its.Data.Cost
 import           Tct.Its.Data.LocalSizebounds     (LocalSizebounds)
-import qualified Tct.Its.Data.LocalSizebounds     as LB (compute)
 import           Tct.Its.Data.ResultVariableGraph (RVGraph)
-import qualified Tct.Its.Data.ResultVariableGraph as RVG (compute)
 import           Tct.Its.Data.Rule
 import           Tct.Its.Data.Sizebounds          (Sizebounds)
-import qualified Tct.Its.Data.Sizebounds          as SB (initialise, updateSizebounds)
 import           Tct.Its.Data.Timebounds          (Timebounds)
 import qualified Tct.Its.Data.Timebounds          as TB
 import           Tct.Its.Data.TransitionGraph     (TGraph, estimateGraph, initialRules)
@@ -61,11 +54,11 @@ data Its = Its
 
 
 initialise :: ([Fun], [Var], [Rule]) -> Its
-initialise ([fs],vs, rsl) = Its
+initialise ([fs],_, rsl) = Its
   { _irules          = irules
   , _signature       = mkSignature
 
-  , _startterm       = Term fs (map P.variable vs)
+  , _startterm       = Term fs (args $ lhs start) 
   , _tgraph          = tgraph
   , _rvgraph         = Nothing
 
@@ -73,6 +66,7 @@ initialise ([fs],vs, rsl) = Its
   , _sizebounds      = Nothing
   , _localSizebounds = Nothing }
   where
+    start = error "startterm not defined" `fromMaybe` L.find (\r -> fun (lhs r) == fs) rsl
     tgraph = estimateGraph irules
     irules = zip [0..] rsl
     ris = fst (unzip irules)
@@ -80,67 +74,6 @@ initialise ([fs],vs, rsl) = Its
       where k = foldl (\m t -> M.insert (fun t) (length $ args t) m) M.empty
 initialise _ = error "Problem.initialise: not implemented: multiple start symbols"
 
-
--- | Sets localSizebounds, rvgraph, sizebounds if not already defined.
-initialiseSizebounds :: Its -> IO Its
-initialiseSizebounds prob = case _localSizebounds prob of
-  Just _ ->  return prob
-  Nothing -> newprob
-  where
-    newprob = do
-      lbounds <- LB.compute (domain prob) (_irules prob)
-      let
-        rvgraph = RVG.compute (_tgraph prob) lbounds
-        sbounds = SB.initialise lbounds
-      liftIO $ writeFile "/tmp/rvgraph.dot" $ maybe "Gr" (Gr.showDot . Gr.fglToDot) (_rvgraph prob)
-      return $ prob {_localSizebounds = Just lbounds, _rvgraph = Just rvgraph, _sizebounds = Just sbounds}
-
-data LocalSizeboundsProcessor = LocalSizeboundsProc deriving Show
-
-data LocalSizeboundsProof = LocalSizeboundsProof (Vars, LocalSizebounds) RVGraph
-  deriving Show
-
-instance PP.Pretty LocalSizeboundsProof where
-  pretty (LocalSizeboundsProof vlbounds _) = 
-    PP.text "LocalSizebounds generated; rvgraph"
-    PP.<$$> PP.indent 2 (PP.pretty vlbounds)
-
-instance Processor LocalSizeboundsProcessor where
-  type ProofObject LocalSizeboundsProcessor = LocalSizeboundsProof
-  type Problem LocalSizeboundsProcessor     = Its
-  solve p prob = do
-    nprob <- liftIO $ initialiseSizebounds prob
-    let pproof = LocalSizeboundsProof (domain prob, fromJust $ _localSizebounds nprob) (fromJust $ _rvgraph nprob)
-    return $ resultToTree p prob $ Success (Id nprob) pproof (\(Id c) -> c)
-
-computeLocalSizebounds :: Strategy Its
-computeLocalSizebounds = Proc LocalSizeboundsProc
-
-computeSizebounds :: Strategy Its
-computeSizebounds = Proc SizeboundsProc
-
-data SizeboundsProcessor = SizeboundsProc deriving Show
-
-data SizeboundsProof = SizeboundsProof deriving Show
-
-instance PP.Pretty SizeboundsProof where
-  pretty = const (PP.text "Sizebounds computed.")
-
-instance Processor SizeboundsProcessor where
-  type ProofObject SizeboundsProcessor = SizeboundsProof
-  type Problem SizeboundsProcessor     = Its
-  solve p prob = return $ resultToTree p prob $ Success (Id nprob) SizeboundsProof (\(Id c) -> c)
-    where nprob = updateSizebounds prob
-
-updateSizebounds :: Its -> Its
-updateSizebounds prob = prob {_sizebounds = Just sbounds'} where
-  sbounds' = SB.updateSizebounds 
-    (_tgraph prob) 
-    (fromJust $ _rvgraph prob) 
-    (_timebounds prob) 
-    (fromJust $ _sizebounds prob)  
-    (fromJust $ _localSizebounds prob)
-  
 
 validate :: Rules -> Bool
 validate = const True
@@ -164,7 +97,7 @@ ppRules rs tb =
     lhss = map (PP.pretty . lhs) rsl
     rhss = map ((\p -> ppSpace PP.<> ppSep PP.<> ppSpace PP.<> p) . PP.pretty . rhs ) rsl
     css  = map (PP.pretty . con ) rsl
-    tbs  = map ((ppSpace PP.<>) . PP.pretty . (tb M.!)) is
+    tbs  = map ((ppSpace PP.<>) . PP.pretty . (tb `TB.boundOf`)) is
     ppSpace = PP.string "  "
     (is, rsl) = unzip rs
 
@@ -176,7 +109,7 @@ instance PP.Pretty Its where
     pp "Rules:" (ppRules (_irules prob) (_timebounds prob))
     PP.<$$> pp "Signature:" (PP.pretty $ _signature prob)
     PP.<$$> pp "Flow Graph:" (PP.pretty (_tgraph prob))
-    PP.<$$> pp "Sizebounds:" (PP.pretty (_sizebounds prob))
+    --PP.<$$> pp "Sizebounds:" (PP.pretty (_sizebounds prob))
     where pp st p = PP.text st PP.<$$> PP.indent 2 p
 
 
