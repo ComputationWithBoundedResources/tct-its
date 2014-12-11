@@ -1,27 +1,20 @@
 Name:               tct-its
 Version:            3.0.0
 Author:
-  Martin Avanzini <martin.avanzini@uibk.ac.at>,
-  Andreas Kochesser <andreas.kochesser@uibk.ac.at>,
-  Georg Moser <georg.moser@uibk.ac.at>,
   Michael Schaper <michael.schaper@uibk.ac.at>,
-  Maria Schett <maria.schett@uibk.ac.at>
 Maintainer:
-  Martin Avanzini <martin.avanzini@uibk.ac.at>,
-  Andreas Kochesser <andreas.kochesser@uibk.ac.at>,
-  Georg Moser <georg.moser@uibk.ac.at>,
   Michael Schaper <michael.schaper@uibk.ac.at>,
-  Maria Schett <maria.schett@uibk.ac.at>
 Category: Program Analysis
 Stability: Experimental
 License: BSD3
 License-file: LICENSE
 Homepage: http://cl-informatik.uibk.ac.at/software/tct/
-Synopsis: A Complexity Analyser for Term Rewrite Systems
+Synopsis: A Complexity Analyser for Integer Transition Systems
 Description:
-  The Tyrolean Complexity Tool (TcT for short) is a tool
-  for proving upper bounds on the derivational and runtime complexity
-  of term rewriting systems automatically.
+  The Tyrolean Complexity Tool (TcT for short) is a tool for proving 
+  resource bounds for different formal systems. This package provides 
+  techniques to analyse runtime- and sizebounds for integer transtions 
+  systems (ITS).
 
 Cabal-version: >= 1.8
 Build-type: Simple
