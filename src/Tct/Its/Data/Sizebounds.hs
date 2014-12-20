@@ -47,22 +47,22 @@ updateSizebounds tgraph rvgraph tbounds sbounds lbounds = foldl k sbounds (RVG.s
 
 
 boundsOfVars :: Sizebounds -> (Int,Int) -> M.Map Var Cost
-boundsOfVars sbounds (t1,i1) = M.fromList [ (v,c) | ((t,i,v),c) <- M.assocs sbounds , t == t1, i == i1 ]
+boundsOfVars sbounds (t1,i1) = M.fromList [ (v,c) | (RV  t i v ,c) <- M.assocs sbounds , t == t1, i == i1 ]
 
 -- sizebound for trivial SCCs
 sizebound :: TGraph -> LocalSizebounds -> RV -> Sizebounds -> Sizebounds
-sizebound tgraph lbounds rv@(t,_,_) sbounds = update rv sbound sbounds
+sizebound tgraph lbounds rv sbounds = update rv sbound sbounds
   where
     lbound = lbounds `LB.lboundOf` rv
     sbound
       | null preds = lbound
       | otherwise  = foldl1 maximal [ compose lbound (varmap t' i)| (t',i) <- preds ]
 
-    varmap t' i = M.fromList [ (v1,c1) | ((t1,i1,v1),c1) <- M.assocs sbounds , t1 == t', i1 == i ]
-    preds       = TG.predecessors tgraph t
+    varmap t' i = M.fromList [ (v1,c1) | (RV t1 i1 v1, c1) <- M.assocs sbounds , t1 == t', i1 == i ]
+    preds       = TG.predecessors tgraph (rvRule rv) 
 
 cyclicDependencies :: RVGraph -> [RV] -> RV -> [Var]
-cyclicDependencies rvgraph scc rv = let r = L.nub [ v | (_,_,v) <- RVG.predecessors rvgraph rv `L.intersect` scc ] in traceShow r r
+cyclicDependencies rvgraph scc rv = L.nub [ rvVar rv' | rv' <- RVG.predecessors rvgraph rv `L.intersect` scc ]
 
 dependencyConstraint :: RVGraph -> [RV] -> RV -> Bool
 dependencyConstraint rvgraph rvs rv = let r = length (cyclicDependencies rvgraph rvs rv) <= 1 in traceShow r r 
@@ -105,17 +105,17 @@ sizeboundMax sbounds rvgraph scc ms = foldl1 maximal (constBound: incomBounds)
     incomBounds = sizeboundsIncoming sbounds rvgraph scc
 
 -- | 
-sizeboundMaxPlus :: Timebounds -> [(RV,Int)] -> Cost
+sizeboundMaxPlus :: Timebounds -> [(RV, Int)] -> Cost
 sizeboundMaxPlus tbounds mps = bigAdd $ map k mps
-  where k ((t,_,_),i) = (tbounds `boundOf` t) `mul` poly (P.constant i)
+  where k (rv,i) = (tbounds `boundOf` rvRule rv) `mul` poly (P.constant i)
 
 
-sizeboundSumPlus :: Timebounds -> Sizebounds -> LocalSizebounds -> RVGraph -> [RV] -> [(RV,Int)] -> Cost
+sizeboundSumPlus :: Timebounds -> Sizebounds -> LocalSizebounds -> RVGraph -> [RV] -> [(RV, Int)] -> Cost
 sizeboundSumPlus tbounds sbounds lbounds rvgraph scc sps = bigAdd $ map k sps
   where 
-    k (rv@(t,_,_),i) = (tbounds `boundOf` t) `mul` ( poly (P.constant i) `add` bigAdd (map (f rv) (vars rv)))
+    k (rv,i) = (tbounds `boundOf` rvRule rv) `mul` ( poly (P.constant i) `add` bigAdd (map (f rv) (vars rv)))
     vars rv = activeVariables (lbounds `LB.lboundOf` rv) L.\\ cyclicDependencies rvgraph scc rv
-    f rv v = foldl maximal zero [ sbounds `boundOf` rv' | rv'@(_,_,v') <- RVG.predecessors rvgraph rv, v == v' ]
+    f rv v = foldl maximal zero [ sbounds `boundOf` rv' | rv' <- RVG.predecessors rvgraph rv, v == rvVar rv' ]
 
 ppSizebounds :: Vars -> Sizebounds -> PP.Doc
 ppSizebounds vars sbounds = ppRVs vars (M.assocs sbounds) (\sbound -> [PP.pretty sbound])

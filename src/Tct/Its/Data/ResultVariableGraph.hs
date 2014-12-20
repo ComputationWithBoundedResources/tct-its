@@ -28,9 +28,9 @@ compute tgraph lbounds = Gr.mkGraph ns es
     ns   = zip [0..] rvss
     es   = [ (n1, n2, (lbounds `lboundOf` rv2, lbounds `lgrowthOf` rv2)) | (n1,rv1) <- ns, (n2,rv2) <- ns, k rv1 rv2 ]
 
-    k (r1,_,v1) rv@(r2,_,_) =
-      r1 `elem` Gr.pre tgraph r2
-      && v1 `elem` activeVariables (lbounds `lboundOf` rv)
+    k rv1 rv2 =
+      rvRule rv1 `elem` Gr.pre tgraph (rvRule rv2)
+      && rvVar rv1 `elem` activeVariables (lbounds `lboundOf` rv2)
 
 predecessors :: RVGraph -> RV -> [RV]
 predecessors rvgraph rv = preds

@@ -57,8 +57,6 @@ filterLinear = filter isLinearA
 toGte :: Constraint -> Constraint
 toGte = concatMap toGteA
 
-
-
 indices :: Rules -> [Int]
 indices = fst . unzip
 

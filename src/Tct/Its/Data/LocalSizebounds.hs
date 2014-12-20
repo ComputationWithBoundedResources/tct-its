@@ -65,7 +65,7 @@ compute' vs ir lpoly = M.fromList `liftM` mapM k (rvss vs ir)
 
 rvss :: Vars -> (Int, Rule) -> [(RV, IPoly, [APoly])]
 rvss vs (ruleIdx, Rule _ rs cs) =
-  [ ((ruleIdx,rhsIdx,v),rpoly, cs')
+  [ (RV ruleIdx rhsIdx v,rpoly, cs')
     | (rhsIdx, r) <- zip [0..] rs, (v, rpoly) <- zip vs (args r) ]
   where cs' = [ P.mapCoefficients num' p | Gte p _ <- filterLinear (toGte cs) ]
 

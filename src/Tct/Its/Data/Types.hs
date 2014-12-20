@@ -41,11 +41,11 @@ type Rules = [(Int, Rule)]
 
 
 
-type RV = 
-  (Int,  -- ^ Index of the rule
-  Int,   -- ^ Index of the rhs
-  Var    -- ^ Variable
-  )
+data RV = RV
+  { rvRule :: Int
+  , rvRpos :: Int
+  , rvVar  :: Var}
+  deriving (Eq, Ord, Show)
 
 type RV' = (Int, Int )
 
@@ -57,7 +57,7 @@ type ComId = Int
 
 
 ppRV :: RV -> [PP.Doc]
-ppRV (t,i,v) = [PP.char '<', PP.int t, PP.comma, PP.int i, PP.comma, PP.string v, PP.char '>']
+ppRV (RV t i v) = [PP.char '<', PP.int t, PP.comma, PP.int i, PP.comma, PP.string v, PP.char '>']
 
 ppRVs :: Vars -> [(RV, a)] -> (a -> [PP.Doc]) -> PP.Doc
 ppRVs vars assocs ppA = PP.table (concatMap ppCol cols)
@@ -69,5 +69,5 @@ ppRVs vars assocs ppA = PP.table (concatMap ppCol cols)
     cols = mkPartition [] vars assocs
     mkPartition acc [] _       = reverse acc
     mkPartition acc (v:vs) es  = mkPartition (a:acc) vs es'
-      where (a,es') = L.partition (\((_,_,v'),_) -> v == v') es
+      where (a,es') = L.partition (\(rv,_) -> v == rvVar rv) es
 

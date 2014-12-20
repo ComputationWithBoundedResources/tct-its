@@ -76,7 +76,11 @@ initialise _ = error "Problem.initialise: not implemented: multiple start symbol
 
 
 validate :: Rules -> Bool
-validate = const True
+validate = all validRule
+  where
+    validRule (_,ru) = case rhs ru of
+      [r] -> all P.isLinear (args r)
+      _   -> False
 
 {-rvss :: Vars -> Rules -> [RV]-}
 {-rvss vs = concatMap k-}
