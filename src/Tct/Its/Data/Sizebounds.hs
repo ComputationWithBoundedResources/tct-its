@@ -30,7 +30,7 @@ import           Tct.Its.Data.LocalSizebounds (LocalSizebounds)
 import qualified Tct.Its.Data.LocalSizebounds as LB
 import           Tct.Its.Data.Types
 
-import Debug.Trace
+--import Debug.Trace
 
 type Sizebounds = Bounds RV
 
@@ -65,15 +65,15 @@ cyclicDependencies :: RVGraph -> [RV] -> RV -> [Var]
 cyclicDependencies rvgraph scc rv = L.nub [ rvVar rv' | rv' <- RVG.predecessors rvgraph rv `L.intersect` scc ]
 
 dependencyConstraint :: RVGraph -> [RV] -> RV -> Bool
-dependencyConstraint rvgraph rvs rv = let r = length (cyclicDependencies rvgraph rvs rv) <= 1 in traceShow r r 
+dependencyConstraint rvgraph rvs rv = length (cyclicDependencies rvgraph rvs rv) <= 1
 
 sizebounds :: Timebounds -> Sizebounds -> LocalSizebounds -> RVGraph -> [RV] -> Sizebounds
 sizebounds tbounds sbounds lbounds rvgraph scc 
-  | not (null unbounds)                                         = trace "null unbounds" sbounds
-  | not (all (dependencyConstraint rvgraph scc . fst) sumpluss) = trace "cyclic" sbounds
-  | otherwise = trace "comp" $ foldl (\sbounds' rv -> update rv cost sbounds') sbounds scc
+  | not (null unbounds)                                         = sbounds
+  | not (all (dependencyConstraint rvgraph scc . fst) sumpluss) = sbounds
+  | otherwise = foldl (\sbounds' rv -> update rv cost sbounds') sbounds scc
   where 
-    (maxs,maxpluss,sumpluss,unbounds) = let r = classify lbounds scc in traceShow r r
+    (maxs,maxpluss,sumpluss,unbounds) = classify lbounds scc
     cost = sizeboundOf tbounds sbounds lbounds rvgraph scc maxs maxpluss sumpluss
 
 

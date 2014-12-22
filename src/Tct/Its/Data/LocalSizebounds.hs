@@ -92,7 +92,7 @@ entscheide lview rpoly cpolys = do
 
 entscheide' :: IPolyV -> IPoly -> [APoly] -> Bool -> IO (SMT.Sat (IPoly,IPoly))
 entscheide' lview rpoly cpolys withZeroConstant = do
-  res :: SMT.Sat (IPoly,IPoly) <- SMT.solve SMT.minismt $ do
+  res :: SMT.Sat (IPoly,IPoly) <- SMT.solve (SMT.minismt' ["-m", "-ib", "1"]) $ do
     SMT.setLogic "QF_LIA"
 
     let
@@ -112,12 +112,17 @@ entscheide' lview rpoly cpolys withZeroConstant = do
           (p2,pc2) = P.splitConstantValue (bigAdd cs2)
         return $ absolute (p1 `sub` p2) SMT..&& (pc1 SMT..>= pc2)
 
+      restrictVar (_,m) 
+        | null (P.mvariables m) = SMT.ivar >>= \c' -> return (c',m)
+        | otherwise             = SMT.sivar >>= \c' -> return (c',m)
+
+
     -- upper bound 
-    uapoly <- mapM (\(_,m) -> SMT.ivar >>= \c' -> return (c',m)) lview
+    uapoly <- mapM restrictVar lview
     let ubounded = (interpretLhs uapoly `sub` rinst) `eliminate` (cpolys)
     
     -- lower bound
-    lapoly <- mapM (\(_,m) -> SMT.ivar >>= \c' -> return (c',m)) lview
+    lapoly <- mapM restrictVar lview
     let lbounded = (rinst `sub` interpretLhs lapoly) `eliminate` (cpolys)
 
     SMT.assert =<< ubounded

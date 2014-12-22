@@ -4,6 +4,7 @@ module Tct.Its.Data.Cost
 
   , unknown
   , poly
+  , toComplexity
 
   , minimal
   , maximal
@@ -19,6 +20,7 @@ module Tct.Its.Data.Cost
 import qualified Data.Map.Strict as M
 
 import qualified Tct.Core.Common.Pretty    as PP
+import qualified Tct.Core.Data             as T
 
 import qualified Tct.Common.Polynomial    as P
 import           Tct.Common.Ring
@@ -61,6 +63,12 @@ compareCost (NPoly p1) (NPoly p2)
   | otherwise    = Nothing
   where cs = P.coefficients (p1 `sub` p2)
 
+toComplexity :: Cost -> T.Complexity
+toComplexity Unknown = T.Unknown
+toComplexity (NPoly p)
+  | deg < 0   = T.Poly Nothing
+  | otherwise = T.Poly (Just deg)
+  where deg = P.degree p
 
 -- TODO: better bounds
 -- minimum if computable

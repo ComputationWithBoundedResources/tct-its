@@ -21,10 +21,11 @@ import           Data.Maybe                       (fromMaybe)
 import           Tct.Core.Common.Error            (TctError (..))
 import qualified Tct.Core.Common.Parser           as PR
 import qualified Tct.Core.Common.Pretty           as PP
-import           Tct.Core.Data
+import qualified Tct.Core.Data as T
 import           Tct.Core.Main                    (TctMode (..), unit)
 import           Tct.Core.Processor.Trivial       (failing)
 
+import qualified Tct.Common.Answer           as A
 import qualified Tct.Common.Polynomial            as P
 
 import           Tct.Its.Data.Cost
@@ -58,7 +59,7 @@ initialise ([fs],_, rsl) = Its
   { _irules          = irules
   , _signature       = mkSignature
 
-  , _startterm       = Term fs (args $ lhs start) 
+  , _startterm       = Term fs (args $ lhs start)
   , _tgraph          = tgraph
   , _rvgraph         = Nothing
 
@@ -96,7 +97,12 @@ closed = TB.isDefined . _timebounds
 
 ppRules :: Rules -> TB.Timebounds -> PP.Doc
 ppRules rs tb =
-  PP.table [(PP.AlignLeft, lhss), (PP.AlignLeft, rhss), (PP.AlignLeft, css), (PP.AlignLeft, tbs)]
+  PP.table
+    [ (PP.AlignLeft, map (\i -> PP.int i PP.<> PP.dot PP.<> PP.space) is)
+    , (PP.AlignLeft, lhss)
+    , (PP.AlignLeft, rhss)
+    , (PP.AlignLeft, css)
+    , (PP.AlignLeft, tbs)]
   where
     lhss = map (PP.pretty . lhs) rsl
     rhss = map ((\p -> ppSpace PP.<> ppSep PP.<> ppSpace PP.<> p) . PP.pretty . rhs ) rsl
@@ -128,13 +134,14 @@ itsMode = TctMode
   , modeModifyer        = const
   , modeAnswer          = answering }
 
-answering :: Return (ProofTree Its) -> SomeAnswer
-answering (Abort _)     = answer unknown
-answering (Continue pt) = answer $ case F.toList pt of
+answering :: T.Return (T.ProofTree Its) -> T.SomeAnswer
+answering (T.Abort _)     = T.answer A.Unknown
+answering (T.Continue pt) = T.answer . toAnswer . toComplexity $ case F.toList pt of
   [prob] -> TB.totalBound (_timebounds prob)
   _      -> unknown
-
-
+  where
+    toAnswer T.Unknown = A.Unknown
+    toAnswer c         = A.Yes(T.Unknown, c)
 
 --- parse
 

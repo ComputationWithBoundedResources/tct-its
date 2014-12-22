@@ -87,6 +87,7 @@ import qualified Tct.Its.Data.Timebounds             as TB
 import qualified Tct.Its.Data.Sizebounds             as SB
 import qualified Tct.Its.Data.TransitionGraph        as TG
 
+import Debug.Trace
 
 --- Instances --------------------------------------------------------------------------------------------------------
 poly :: PI.Shape -> Strategy Its
@@ -203,7 +204,7 @@ entscheide proc prob@(Its
   , _timebounds      = timebounds
   , _sizebounds      = sizebounds
   }) = do
-  res :: SMT.Sat (M.Map Coefficient Int, M.Map Strict Int) <- SMT.solve SMT.minismt $ do
+  res :: SMT.Sat (M.Map Coefficient Int, M.Map Strict Int) <- SMT.solve (SMT.minismt' ["-m","-ib", "-1"]) $ do
     SMT.setLogic "QF_NIA"
     -- TODO: memoisation is here not used
     (ebsi,coefficientEncoder) <- SMT.memo $ PI.PolyInter `liftM` T.mapM encode absi
@@ -339,6 +340,6 @@ computeBoundWithSize tgraph allrules somerules tbounds sbounds prf = bigAdd $ do
     innerTBound = prf (fun . (!! i) . rhs . snd $ allrules !! t)
     outerTBound = tbounds `TB.boundOf` t
     innerSBounds = SB.boundsOfVars sbounds (t,i)
-  return $ outerTBound `mul` C.compose innerTBound innerSBounds
+  return $ let r = outerTBound `mul` C.compose innerTBound innerSBounds in traceShow (t,i,innerTBound, outerTBound, innerSBounds,r ) r
 
 
