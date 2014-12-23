@@ -65,10 +65,7 @@ import qualified Data.Map.Strict                     as M
 import qualified Data.Set as S (empty)
 import qualified Data.Traversable                    as T (mapM)
 
-import qualified SmtLib.Logic.Core                   as SMT
-import qualified SmtLib.Logic.Int                    as SMT
-import qualified SmtLib.SMT                          as SMT
-import qualified SmtLib.Solver                       as SMT
+import qualified SLogic.Smt                          as SMT
 
 import qualified Tct.Core.Common.Pretty              as PP
 import           Tct.Core.Data                       hiding (linear)
@@ -77,7 +74,6 @@ import           Tct.Common.ProofCombinators
 import qualified Tct.Common.Polynomial               as P
 import qualified Tct.Common.PolynomialInterpretation as PI
 import           Tct.Common.Ring
-import qualified Tct.Common.SMT                      ()
 
 import qualified Tct.Its.Data.Cost                   as C
 import           Tct.Its.Data.Problem
@@ -86,8 +82,6 @@ import           Tct.Its.Data.Types
 import qualified Tct.Its.Data.Timebounds             as TB
 import qualified Tct.Its.Data.Sizebounds             as SB
 import qualified Tct.Its.Data.TransitionGraph        as TG
-
-import Debug.Trace
 
 --- Instances --------------------------------------------------------------------------------------------------------
 poly :: PI.Shape -> Strategy Its
@@ -189,32 +183,33 @@ instance Processor PolyRankProcessor where
 newtype Strict = Strict { unStrict :: Int }
   deriving (Eq, Ord, Show)
 
-num' :: Int -> SMT.Expr
-num' i = if i < 0 then SMT.nNeg (SMT.num (-i)) else SMT.num i
-
 
 find :: (Ord k, Show k) => M.Map k a -> k -> a
 find m k = error err `fromMaybe` M.lookup k m
   where err = "Tct.Its.Processor.PolyRank: key " ++ show k ++ " not found."
 
-entscheide :: PolyRankProcessor -> Its -> IO (SMT.Sat PolyOrder)
+entscheide :: PolyRankProcessor -> Its -> IO (SMT.Result PolyOrder)
 entscheide proc prob@(Its
   { _startterm       = startterm
   , _tgraph          = tgraph
   , _timebounds      = timebounds
   , _sizebounds      = sizebounds
   }) = do
-  res :: SMT.Sat (M.Map Coefficient Int, M.Map Strict Int) <- SMT.solve (SMT.minismt' ["-m","-ib", "-1"]) $ do
-    SMT.setLogic "QF_NIA"
+  let 
+    solver 
+      | useFarkas proc = SMT.yices
+      | otherwise      = SMT.minismt' ["-m","-ib", "-1"]
+  res :: SMT.Result (M.Map Coefficient Int, M.Map Strict Int) <- SMT.solveStM solver $ do 
+    SMT.setFormat $ if useFarkas proc then "QF_LIA" else "QF_NIA"
     -- TODO: memoisation is here not used
     (ebsi,coefficientEncoder) <- SMT.memo $ PI.PolyInter `liftM` T.mapM encode absi
-    (_, strictVarEncoder) <- SMT.memo $ mapM  (SMT.snvarm . Strict) (indices somerules)
+    (_, strictVarEncoder) <- SMT.memo $ mapM  (SMT.snvarMO . Strict) (indices somerules)
 
     let
-      strict = SMT.fm . (strictVarEncoder `find`) . Strict
+      strict = (strictVarEncoder `find`) . Strict
       interpretLhs    = interpret ebsi
       interpretRhs ts = interpret ebsi (head ts) -- TODO
-      interpretCon cs = [ P.mapCoefficients num' c | Gte c _ <- toGte cs ]
+      interpretCon cs = [ P.mapCoefficients SMT.num c | Gte c _ <- toGte cs ]
       absolute p = SMT.bigAnd [ c SMT..== SMT.zero | c <- P.coefficients p ]
 
 
@@ -224,7 +219,7 @@ entscheide proc prob@(Its
       bounded (Rule l _ cs) = eliminate pl (interpretCon cs)
         where pl = neg $ interpretLhs l `sub` P.constant one
       eliminate p ps = do
-        let nvar' = SMT.fm `liftM` SMT.nvar
+        let nvar' = SMT.nvarM'
         mu0 <- nvar'
         mu1 <- nvar'
         SMT.assert $ mu0 SMT..> SMT.zero SMT..|| mu1 SMT..> SMT.zero
@@ -240,8 +235,7 @@ entscheide proc prob@(Its
 
       eliminateFarkas ply cs = do
         let
-          nvar' = SMT.fm `liftM` SMT.nvar
-          k p = nvar' >>= \lambda -> return (lambda `P.scale` p)
+          k p = SMT.nvarM' >>= \lambda -> return (lambda `P.scale` p)
         cs2 <- mapM k cs
         let
           (p1,pc1) = P.splitConstantValue ply
@@ -290,7 +284,7 @@ entscheide proc prob@(Its
       | withSize  = map (allrules !!) (withSizebounds proc)
       | otherwise = allrules
     strictrules = TB.nonDefined timebounds `L.intersect` fst (unzip somerules)
-    encode = P.fromViewWithM (\c -> SMT.fm `liftM` SMT.ivarm c) -- FIXME: incorporate restrict var for strongly linear
+    encode = P.fromViewWithM (\c -> SMT.ivarMO c) -- FIXME: incorporate restrict var for strongly linear
         {-| PI.restrict c = SMT.fm `liftM` SMT.sivarm c-}
         {-| otherwise     = SMT.fm `liftM` SMT.nvarm c-}
     absi = M.mapWithKey (curry (PI.mkInterpretation kind)) sig
@@ -302,7 +296,7 @@ entscheide proc prob@(Its
       where
         interpretFun f = P.substituteVariables interp . M.fromList . zip [PI.SomeIndeterminate 0..]
           where interp = PI.interpretations ebsi `find` f
-        interpretArg a = P.mapCoefficients num' a
+        interpretArg a = P.mapCoefficients SMT.num a
 
     mkOrder (inter, stricts) = PolyOrder
       { shape_  = shp
@@ -314,7 +308,8 @@ entscheide proc prob@(Its
       where
         strictMap = M.mapKeysMonotonic unStrict $ M.filter (>0) stricts
         (strictList, weakList) = L.partition (\(i,_) -> i `M.member` strictMap) somerules
-        pint  = M.map (P.fromViewWith (inter `find`)) absi
+        --pint  = M.map (P.fromViewWith (inter `find`)) absi
+        pint  = M.map (P.fromViewWith (\k -> 0 `fromMaybe` M.lookup k inter)) absi
         costs
           | withSize = computeBoundWithSize tgraph allrules somerules timebounds (fromJust $ sizebounds) costf 
           | otherwise = C.poly (inst $ startterm)
@@ -323,7 +318,8 @@ entscheide proc prob@(Its
         times = M.map (const costs) strictMap
 
         inst = interpretTerm interpretFun interpretArg
-        interpretFun f = P.substituteVariables (pint `find` f) . M.fromList . zip [PI.SomeIndeterminate 0..]
+        --interpretFun f = P.substituteVariables (pint `find` f) . M.fromList . zip [PI.SomeIndeterminate 0..]
+        interpretFun f = P.substituteVariables (zero `fromMaybe` M.lookup f pint) . M.fromList . zip [PI.SomeIndeterminate 0..]
         interpretArg a = a
 
 computeUndefinedVars :: TG.TGraph -> Rules -> Rules -> SB.Sizebounds -> M.Map Fun [Var]
@@ -340,6 +336,6 @@ computeBoundWithSize tgraph allrules somerules tbounds sbounds prf = bigAdd $ do
     innerTBound = prf (fun . (!! i) . rhs . snd $ allrules !! t)
     outerTBound = tbounds `TB.boundOf` t
     innerSBounds = SB.boundsOfVars sbounds (t,i)
-  return $ let r = outerTBound `mul` C.compose innerTBound innerSBounds in traceShow (t,i,innerTBound, outerTBound, innerSBounds,r ) r
+  return $ outerTBound `mul` C.compose innerTBound innerSBounds
 
 

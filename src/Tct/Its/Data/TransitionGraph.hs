@@ -19,8 +19,6 @@ import qualified Tct.Core.Common.Pretty as PP
 
 import Tct.Its.Data.Types
 
-import Debug.Trace
-
 -- | Transition (or Control-Flow) graph:
 --    * Nodes correspond to indices of rules.
 --    * There is an edge between two nodes if there exists an evaluation st the latter rule follows the former rule.
@@ -37,7 +35,7 @@ estimateGraphWith :: (Rule -> Rule -> [Int])  -> Rules -> TGraph
 estimateGraphWith f irs = Gr.mkGraph ns es
   where 
     ns = map (fmap (const ())) irs
-    es  = [ (n1, n2, cid) | (n1,r1) <- irs, (n2,r2) <- irs, cid <- traceShow (n1,n2, f r1 r2) (f r1 r2) ]
+    es  = [ (n1, n2, cid) | (n1,r1) <- irs, (n2,r2) <- irs, cid <- f r1 r2 ]
 
 -- | Only compares the function symbol.
 functionSymbols :: Rule -> Rule -> [ComId]

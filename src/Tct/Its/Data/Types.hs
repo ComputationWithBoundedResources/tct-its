@@ -1,5 +1,6 @@
 module Tct.Its.Data.Types where
 
+import qualified Data.Set as S
 import qualified Data.Map.Strict as M
 import qualified Data.List as L
 
@@ -8,6 +9,9 @@ import qualified Tct.Core.Common.Pretty as PP
 
 
 type Signature = M.Map Fun Int
+
+restrictSignature :: S.Set Fun -> Signature -> Signature
+restrictSignature fs = M.filterWithKey (\k _ -> k `S.member` fs)
 
 instance PP.Pretty Signature where
   pretty sig = PP.semiBraces $ map (\(f,i) -> PP.tupled [PP.pretty f, PP.pretty i]) (M.toList sig)

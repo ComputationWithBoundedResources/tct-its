@@ -17,28 +17,31 @@ module Tct.Its.Data.LocalSizebounds
   , lgrowthOf
   ) where
 
+
 import           Control.Monad         (foldM, liftM)
 import           Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict       as M
 
-import qualified SmtLib.Logic.Core     as SMT
-import qualified SmtLib.Logic.Int      as SMT
-import qualified SmtLib.SMT            as SMT
-import qualified SmtLib.Solver         as SMT
+import qualified SLogic.Smt as SMT
 
 import qualified Tct.Core.Common.Pretty     as PP
 import qualified Tct.Common.Polynomial as P
 import           Tct.Common.Ring
-import qualified Tct.Common.SMT        ()
 
+import           Tct.Its.Data.Smt ()
 import           Tct.Its.Data.Cost
 import           Tct.Its.Data.Rule
 import           Tct.Its.Data.Types
 
 
+{-instance PP.Pretty SMT.Expr where-}
+  {-pretty = PP.text . SMT.prettyExpr-}
+
+
+
 type LocalSizebounds = M.Map RV (Cost, Growth)
 
-type APoly  = P.Polynomial SMT.Expr Var
+type APoly  = P.Polynomial SMT.IExpr Var
 type IPolyV = P.PView Int Var
 
 
@@ -67,10 +70,7 @@ rvss :: Vars -> (Int, Rule) -> [(RV, IPoly, [APoly])]
 rvss vs (ruleIdx, Rule _ rs cs) =
   [ (RV ruleIdx rhsIdx v,rpoly, cs')
     | (rhsIdx, r) <- zip [0..] rs, (v, rpoly) <- zip vs (args r) ]
-  where cs' = [ P.mapCoefficients num' p | Gte p _ <- filterLinear (toGte cs) ]
-
-num' :: Int -> SMT.Expr
-num' i = if i < 0 then SMT.nNeg (SMT.num (-i)) else SMT.num i
+  where cs' = [ P.mapCoefficients SMT.num p | Gte p _ <- filterLinear (toGte cs) ]
 
 instance (SMT.Decode m c a, Additive a, Eq a)
   => SMT.Decode m (P.PView c Var) (P.Polynomial a Var) where
@@ -90,22 +90,21 @@ entscheide lview rpoly cpolys = do
   -- TODO: alternative instance for sat
 
 
-entscheide' :: IPolyV -> IPoly -> [APoly] -> Bool -> IO (SMT.Sat (IPoly,IPoly))
+entscheide' :: IPolyV -> IPoly -> [APoly] -> Bool -> IO (SMT.Result (IPoly,IPoly))
 entscheide' lview rpoly cpolys withZeroConstant = do
-  res :: SMT.Sat (IPoly,IPoly) <- SMT.solve (SMT.minismt' ["-m", "-ib", "1"]) $ do
-    SMT.setLogic "QF_LIA"
+  res :: SMT.Result (IPoly,IPoly) <- SMT.solveStM (SMT.minismt' ["-m", "-ib", "1"]) $ do
+    SMT.setFormat "QF_LIA"
 
     let
-      interpretLhs = P.fromViewWith SMT.fm
-      interpretRhs = P.mapCoefficients num'
+      interpretLhs = P.fromViewWith id
+      interpretRhs = P.mapCoefficients SMT.num
       absolute p = SMT.bigAnd [ c SMT..== SMT.zero | c <- P.coefficients p ]
 
     let
       rinst = interpretRhs rpoly
       eliminate ply css = do
         let
-          nvar' = SMT.fm `liftM` SMT.nvar
-          k p = nvar' >>= \lambda -> return (lambda `P.scale` p)
+          k p = SMT.nvarM' >>= \lambda -> return (lambda `P.scale` p)
         cs2 <- mapM k css
         let
           (p1,pc1) = P.splitConstantValue ply
@@ -113,17 +112,17 @@ entscheide' lview rpoly cpolys withZeroConstant = do
         return $ absolute (p1 `sub` p2) SMT..&& (pc1 SMT..>= pc2)
 
       restrictVar (_,m) 
-        | null (P.mvariables m) = SMT.ivar >>= \c' -> return (c',m)
-        | otherwise             = SMT.sivar >>= \c' -> return (c',m)
+        | null (P.mvariables m) = SMT.ivarM' >>= \c' -> return (c',m)
+        | otherwise             = SMT.sivarM' >>= \c' -> return (c',m)
 
 
     -- upper bound 
     uapoly <- mapM restrictVar lview
-    let ubounded = (interpretLhs uapoly `sub` rinst) `eliminate` (cpolys)
+    let ubounded = (interpretLhs uapoly `sub` rinst) `eliminate` cpolys
     
     -- lower bound
     lapoly <- mapM restrictVar lview
-    let lbounded = (rinst `sub` interpretLhs lapoly) `eliminate` (cpolys)
+    let lbounded = (rinst `sub` interpretLhs lapoly) `eliminate` cpolys
 
     SMT.assert =<< ubounded
     SMT.assert =<< lbounded

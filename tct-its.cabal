@@ -32,7 +32,7 @@ Executable its
     fgl-visualize    == 0.1.0.*,
     parsec           == 3.1.*,
 
-    smtlib           == 0.*,
+    slogic           == 0.*,
     tct-common       == 3.*,
     tct-core         == 3.*,
     tct-its          == 3.*
@@ -57,6 +57,7 @@ Library
   exposed-modules:
     Tct.Its
     Tct.Its.Data
+    Tct.Its.Data.Smt
     Tct.Its.Data.Bounds
     Tct.Its.Data.Cost
     Tct.Its.Data.TransitionGraph
@@ -69,7 +70,7 @@ Library
     Tct.Its.Data.LocalSizebounds
     Tct.Its.Processor.Sizebounds
     Tct.Its.Processor.PolyRank
-    Tct.Its.Processor.KnowledgePropagation
+    Tct.Its.Processor.Simplification
     Tct.Its.Processor.Empty
   build-depends:
     containers       >= 0.5 && < 0.6,
@@ -79,7 +80,7 @@ Library
     fgl-visualize    == 0.1.0.*,
     parsec           == 3.1.*,
 
-    smtlib           == 0.*,
+    slogic           == 0.*,
     tct-common       == 3.*,
     tct-core         == 3.*
     

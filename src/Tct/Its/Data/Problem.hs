@@ -112,7 +112,7 @@ ppRules rs tb =
     (is, rsl) = unzip rs
 
 updateTimebounds :: Its -> TB.Timebounds -> Its
-updateTimebounds prob tb = prob { _timebounds = TB.updates tb (_timebounds prob) }
+updateTimebounds prob tb = prob { _timebounds = TB.updates (_timebounds prob) tb }
 
 instance PP.Pretty Its where
   pretty prob =

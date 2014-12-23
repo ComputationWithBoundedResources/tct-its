@@ -73,7 +73,9 @@ toComplexity (NPoly p)
 -- TODO: better bounds
 -- minimum if computable
 minimal :: Cost -> Cost -> Cost
-minimal c1 _ = c1
+minimal c1 Unknown = c1
+minimal Unknown c2 = c2
+minimal c1 _       = c1
 
 maximal :: Cost -> Cost -> Cost
 maximal c1 c2 = case compareCost c1 c2 of
