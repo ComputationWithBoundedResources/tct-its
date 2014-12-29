@@ -2,6 +2,7 @@ module Tct.Its.Data.Types where
 
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
+import qualified Data.IntMap.Strict as IM
 import qualified Data.List as L
 
 import qualified Tct.Common.Polynomial as P
@@ -41,7 +42,8 @@ data Rule = Rule
 
 
 type Vars  = [Var]
-type Rules = [(Int, Rule)]
+type RuleId = Int
+type Rules = IM.IntMap Rule
 
 
 
@@ -54,7 +56,6 @@ data RV = RV
 type RV' = (Int, Int )
 
 
-type RuleId = Int
 type ComId = Int
 
 

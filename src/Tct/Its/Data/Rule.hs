@@ -13,7 +13,6 @@ module Tct.Its.Data.Rule
 
   , Rule (..)
   , Rules
-  , indices
   , Vars
 
   -- TODO: move
@@ -57,9 +56,6 @@ filterLinear = filter isLinearA
 toGte :: Constraint -> Constraint
 toGte = concatMap toGteA
 
-indices :: Rules -> [Int]
-indices = fst . unzip
-
 
 
 
@@ -75,7 +71,8 @@ ppTerm :: Term -> PP.Doc
 ppTerm (Term f ts) = PP.string f PP.<> PP.tupled (map PP.pretty ts)
 
 ppTerms ::  [Term] -> PP.Doc
-ppTerms ts = PP.char 'c' PP.<> PP.int (length ts) PP.<> PP.tupled (map PP.pretty ts)
+ppTerms [t] = ppTerm t
+ppTerms ts  = PP.char 'c' PP.<> PP.int (length ts) PP.<> PP.tupled (map ppTerm ts)
 
 instance PP.Pretty Term where
   pretty = ppTerm
@@ -89,7 +86,7 @@ ppBinop t1 op t2 = PP.pretty t1 PP.<+> PP.text op PP.<+> PP.pretty t2
 
 ppAtoms :: [Atom] -> PP.Doc
 ppAtoms [] = PP.text "True"
-ppAtoms as = PP.encloseSep PP.lbracket PP.rbracket (PP.text andSym) (map PP.pretty as)
+ppAtoms as = PP.encloseSep PP.lbracket PP.rbracket (PP.enclose PP.space PP.space (PP.text andSym)) (map PP.pretty as)
 
 instance PP.Pretty Atom where
   pretty (Eq t1 t2)  = ppBinop t1 "=" t2
@@ -146,8 +143,8 @@ pTerm = (Term <$> PR.identifier <*> PR.parens (pPoly `PR.sepBy` PR.symbol ",")) 
 pTerms :: Parser [Term]
 pTerms = do
   void $ PR.symbol "Com_"
-  n <- PR.nat
-  PR.parens (PR.count n pTerm)
+  void PR.nat
+  PR.parens(pTerm `PR.sepBy1` PR.symbol ",")
   PR.<?> "terms"
 
 -- poly binop poly (binop: =, >=)
@@ -158,7 +155,14 @@ pAtom = do
   p2 <- pPoly
   return $ p1 `op` p2
   PR.<?> "atom"
-  where bin = [PR.reserved "=" *> return Eq, PR.reserved ">=" *> return Gte]
+  where 
+    bin = 
+      [ PR.reserved "=" *> return Eq
+      , PR.reserved ">=" *> return Gte
+      , PR.reserved "=<" *> return (flip Gte)
+      , PR.reserved "<=" *> return (flip Gte)
+      , PR.reserved ">" *> return (\p1 p2 -> Gte (p1 `sub` one)  p2)
+      , PR.reserved "<" *> return (\p2 p1 -> Gte (p1 `sub` one)  p2) ]
 
 -- :|: a1 && a2 && ..
 pConstraint :: Parser Constraint

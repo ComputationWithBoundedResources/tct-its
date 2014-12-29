@@ -4,7 +4,7 @@ module Tct.Its.Data.TransitionGraph
   -- * Construction
   , estimateGraph 
   -- * Queries
-  , initialRules 
+  {-, initialRules -}
   , predecessors
   , incoming
   , sccs
@@ -13,6 +13,7 @@ module Tct.Its.Data.TransitionGraph
 
 
 import qualified Data.Set as S
+import qualified Data.IntMap as IM
 import qualified Data.Graph.Inductive as Gr
 
 import qualified Tct.Core.Common.Pretty as PP
@@ -32,9 +33,10 @@ estimateGraph :: Rules -> TGraph
 estimateGraph = estimateGraphWith functionSymbols
 
 estimateGraphWith :: (Rule -> Rule -> [Int])  -> Rules -> TGraph
-estimateGraphWith f irs = Gr.mkGraph ns es
+estimateGraphWith f rules = Gr.mkGraph ns es
   where 
-    ns = map (fmap (const ())) irs
+    irs = IM.toList rules
+    ns  = map (fmap (const ())) irs
     es  = [ (n1, n2, cid) | (n1,r1) <- irs, (n2,r2) <- irs, cid <- f r1 r2 ]
 
 -- | Only compares the function symbol.
@@ -42,8 +44,8 @@ functionSymbols :: Rule -> Rule -> [ComId]
 functionSymbols r1 r2 = [ cid | (cid,r) <- zip [0..] (rhs r1), fun r == fun (lhs r2) ]
 
 -- | Returns all nodes without predecessors.
-initialRules :: TGraph -> [RuleId]
-initialRules tgraph = filter (\n -> Gr.indeg tgraph n == 0) (Gr.nodes tgraph)
+{-initialRules :: TGraph -> [RuleId]-}
+{-initialRules tgraph = filter (\n -> Gr.indeg tgraph n == 0) (Gr.nodes tgraph)-}
 
 predecessors :: TGraph -> RuleId -> [RV']
 predecessors = Gr.lpre

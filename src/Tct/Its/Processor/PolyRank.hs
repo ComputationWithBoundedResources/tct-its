@@ -47,6 +47,8 @@ module Tct.Its.Processor.PolyRank
   polyRankProcessor
   
   , linear
+  , stronglyLinear
+  , quadratic
   , mixed
   , polyDeclaration
   
@@ -57,18 +59,19 @@ module Tct.Its.Processor.PolyRank
 
   ) where
 
-import           Control.Monad                       (liftM, when)
+import           Control.Monad                       (liftM)
 import           Control.Monad.Trans                 (liftIO)
 import qualified Data.List                           as L (partition, intersect)
-import           Data.Maybe                          (fromJust, fromMaybe, isJust)
+import           Data.Maybe                          (fromJust, fromMaybe)
 import qualified Data.Map.Strict                     as M
-import qualified Data.Set as S (empty)
+import qualified Data.IntMap.Strict                     as IM
+import qualified Data.Set as S 
 import qualified Data.Traversable                    as T (mapM)
 
 import qualified SLogic.Smt                          as SMT
 
 import qualified Tct.Core.Common.Pretty              as PP
-import           Tct.Core.Data                       hiding (linear)
+import qualified Tct.Core.Data                       as T
 
 import           Tct.Common.ProofCombinators 
 import qualified Tct.Common.Polynomial               as P
@@ -83,30 +86,31 @@ import qualified Tct.Its.Data.Timebounds             as TB
 import qualified Tct.Its.Data.Sizebounds             as SB
 import qualified Tct.Its.Data.TransitionGraph        as TG
 
+
 --- Instances --------------------------------------------------------------------------------------------------------
-poly :: PI.Shape -> Strategy Its
-poly shp = Proc polyRankProcessor{ shape = shp}
+poly :: PI.Shape -> T.Strategy Its
+poly shp = T.Proc polyRankProcessor{ shape = shp}
 
-farkas :: Strategy Its
-farkas = Proc polyRankProcessor { useFarkas = True, shape = PI.Linear }
+farkas :: T.Strategy Its
+farkas = T.Proc polyRankProcessor { useFarkas = True, shape = PI.Linear }
 
-timebounds :: [RuleId] -> Strategy Its
-timebounds rs = Proc polyRankProcessor { useFarkas = True, shape = PI.Linear, withSizebounds = rs }
+timebounds :: [RuleId] -> T.Strategy Its
+timebounds rs = T.Proc polyRankProcessor { useFarkas = True, shape = PI.Linear, withSizebounds = rs }
 
 
-polyDeclaration ::Declaration ('[ Argument 'Required PI.Shape ] :-> Strategy Its)
-polyDeclaration = declare "poly" ["(non-liear) polynomial ranking function."] (OneTuple PI.shapeArg) poly
+polyDeclaration ::T.Declaration ('[ T.Argument 'T.Required PI.Shape ] T.:-> T.Strategy Its)
+polyDeclaration = T.declare "poly" ["(non-liear) polynomial ranking function."] (T.OneTuple PI.shapeArg) poly
 
-farkasDeclaration ::Declaration ('[] :-> Strategy Its)
-farkasDeclaration = declare "farkas" ["linear polynomial ranking function."] () farkas
+farkasDeclaration ::T.Declaration ('[] T.:-> T.Strategy Its)
+farkasDeclaration = T.declare "farkas" ["linear polynomial ranking function."] () farkas
 
-stronglyLinear, linear, quadratic :: Strategy Its
-stronglyLinear = Proc polyRankProcessor{ shape = PI.StronglyLinear }
-linear         = Proc polyRankProcessor{ shape = PI.Linear }
-quadratic      = Proc polyRankProcessor{ shape = PI.Quadratic }
+stronglyLinear, linear, quadratic :: T.Strategy Its
+stronglyLinear = T.Proc polyRankProcessor{ shape = PI.StronglyLinear }
+linear         = T.Proc polyRankProcessor{ shape = PI.Linear }
+quadratic      = T.Proc polyRankProcessor{ shape = PI.Quadratic }
 
-mixed :: Int -> Strategy Its
-mixed i = Proc polyRankProcessor{ shape = PI.Mixed i }
+mixed :: Int -> T.Strategy Its
+mixed i = T.Proc polyRankProcessor{ shape = PI.Mixed i }
 
 
 data PolyRankProcessor = PolyRank
@@ -165,18 +169,17 @@ instance PP.Pretty PolyOrder where
 instance PP.Pretty PolyRankProof where
   pretty (PolyRankProof o) = PP.pretty o
 
-instance Processor PolyRankProcessor where
+instance T.Processor PolyRankProcessor where
   type ProofObject PolyRankProcessor = PolyRankProof
   type Problem PolyRankProcessor     = Its
   solve p prob
-    | closed prob = return $ resultToTree p prob $ Fail (PolyRankProof . Applicable $ Empty)
+    | closed prob = return $ progress p prob NoProgress (PolyRankProof (Applicable Empty))
     | otherwise = do
         res  <- liftIO $ entscheide p prob
-        return . resultToTree p prob $ case res of
-          SMT.Sat order ->
-            Success (Id $ updateTimebounds prob (times_ order)) (PolyRankProof $ Applicable $ Order order) (\(Id c) -> c)
-          SMT.Error s -> Fail (PolyRankProof $ Inapplicable s)
-          _ -> Fail (PolyRankProof . Applicable $ Incompatible)
+        return . uncurry (progress p prob) $ case res of
+          SMT.Sat order -> (Progress $ updateTimebounds prob (times_ order), PolyRankProof (Applicable (Order order)))
+          SMT.Error s   -> (NoProgress, PolyRankProof (Inapplicable s))
+          _             -> (NoProgress, PolyRankProof (Applicable Incompatible))
 
 
 
@@ -203,7 +206,7 @@ entscheide proc prob@(Its
     SMT.setFormat $ if useFarkas proc then "QF_LIA" else "QF_NIA"
     -- TODO: memoisation is here not used
     (ebsi,coefficientEncoder) <- SMT.memo $ PI.PolyInter `liftM` T.mapM encode absi
-    (_, strictVarEncoder) <- SMT.memo $ mapM  (SMT.snvarMO . Strict) (indices somerules)
+    (_, strictVarEncoder) <- SMT.memo $ mapM  (SMT.snvarMO . Strict) is
 
     let
       strict = (strictVarEncoder `find`) . Strict
@@ -249,11 +252,11 @@ entscheide proc prob@(Its
         fm2 <- if useFarkas proc then boundedFarkas r else bounded r
         return (fm1 SMT..&& ((strict i SMT..> SMT.zero) SMT..==> fm2))
 
-      orderConstraint = [ order r | r <- somerules ]
+      orderConstraint = [ order r | r <- someirules ]
       rulesConstraint = [ strict i SMT..> SMT.zero | i <- strictrules ]
 
     let
-      undefinedVars = computeUndefinedVars tgraph allrules somerules (fromJust sizebounds)
+      undefinedVars = computeUndefinedVars tgraph allrules (IM.fromList someirules) (fromJust sizebounds)
       undefinedCofs (Rule l _ _) = [ c | (c,ms) <- pl, (v,_) <- ms, isUndefined (fun l) v ]
         where
           pl = P.toView' (interpretLhs l)
@@ -261,35 +264,35 @@ entscheide proc prob@(Its
             Nothing -> False
             Just vs -> v `elem` vs
       undefinedConstraint 
-        | withSize  = SMT.bigAnd [ c SMT..== SMT.zero | (_,r) <- somerules, c <- undefinedCofs r ]
+        | withSize  = SMT.bigAnd [ c SMT..== SMT.zero | r <- somerules, c <- undefinedCofs r ]
         | otherwise = SMT.top
 
 
 
-    SMT.assert =<< bigAndM orderConstraint
+    SMT.assert =<< SMT.bigAndM orderConstraint
     SMT.assert $ SMT.bigOr rulesConstraint
     SMT.assert $ undefinedConstraint
-
 
 
     return $ SMT.decode (coefficientEncoder, strictVarEncoder)
 
   return $ mkOrder `fmap` res
   where
-    bigAndM = liftM SMT.bigAnd . sequence
 
     withSize = not $ null (withSizebounds proc)
     allrules = _irules prob
-    somerules
-      | withSize  = map (allrules !!) (withSizebounds proc)
-      | otherwise = allrules
-    strictrules = TB.nonDefined timebounds `L.intersect` fst (unzip somerules)
+    someirules
+      | withSize  = IM.assocs $ IM.filterWithKey (\k _ -> k `elem` withSizebounds proc)  allrules
+      | otherwise = IM.assocs $ allrules
+    (is, somerules) =  unzip someirules
+    strictrules = TB.nonDefined timebounds `L.intersect` is
     encode = P.fromViewWithM (\c -> SMT.ivarMO c) -- FIXME: incorporate restrict var for strongly linear
         {-| PI.restrict c = SMT.fm `liftM` SMT.sivarm c-}
         {-| otherwise     = SMT.fm `liftM` SMT.nvarm c-}
     absi = M.mapWithKey (curry (PI.mkInterpretation kind)) sig
     kind = PI.ConstructorBased shp S.empty 
-    sig = _signature prob
+    sig = restrictSignature (S.fromList $ funs somerules) (_signature prob)
+    funs = foldl (\fs (Rule l r _) -> fun l : map fun r ++ fs) []
     shp = if useFarkas proc then PI.Linear else shape proc
 
     interpret ebsi = interpretTerm interpretFun interpretArg
@@ -307,33 +310,31 @@ entscheide proc prob@(Its
       , sbounds_ = if withSize then (\sb -> (domain prob, sb)) `fmap` sizebounds else Nothing}
       where
         strictMap = M.mapKeysMonotonic unStrict $ M.filter (>0) stricts
-        (strictList, weakList) = L.partition (\(i,_) -> i `M.member` strictMap) somerules
-        --pint  = M.map (P.fromViewWith (inter `find`)) absi
-        pint  = M.map (P.fromViewWith (\k -> 0 `fromMaybe` M.lookup k inter)) absi
+        (strictList, weakList) = L.partition (\(i,_) -> i `M.member` strictMap) someirules
+        pint  = M.map (P.fromViewWith (inter `find`)) absi
         costs
-          | withSize = computeBoundWithSize tgraph allrules somerules timebounds (fromJust $ sizebounds) costf 
+          | withSize = computeBoundWithSize tgraph allrules (IM.fromList someirules) timebounds (fromJust $ sizebounds) costf 
           | otherwise = C.poly (inst $ startterm)
           where costf f = C.poly . inst $ Term f (args $ startterm)
 
         times = M.map (const costs) strictMap
 
         inst = interpretTerm interpretFun interpretArg
-        --interpretFun f = P.substituteVariables (pint `find` f) . M.fromList . zip [PI.SomeIndeterminate 0..]
-        interpretFun f = P.substituteVariables (zero `fromMaybe` M.lookup f pint) . M.fromList . zip [PI.SomeIndeterminate 0..]
+        interpretFun f = P.substituteVariables (pint `find` f) . M.fromList . zip [PI.SomeIndeterminate 0..]
         interpretArg a = a
 
 computeUndefinedVars :: TG.TGraph -> Rules -> Rules -> SB.Sizebounds -> M.Map Fun [Var]
 computeUndefinedVars tgraph allrules somerules sbounds = M.fromList
   [ (f,vs) | (t,i) <- ins, let f = funOf (t,i), let vs = M.keys $ M.filter (==C.Unknown) (SB.boundsOfVars sbounds (t,i))]
   where
-    ins   = TG.incoming tgraph (fst $ unzip somerules) 
-    funOf (t,i) = fun . (!! i) . rhs . snd $ allrules !! t
+    ins   = TG.incoming tgraph (IM.keys somerules) 
+    funOf (t,i) = fun . (!! i) . rhs $ allrules IM.! t
 
 computeBoundWithSize :: TG.TGraph -> Rules -> Rules -> TB.Timebounds -> SB.Sizebounds -> (Fun -> C.Cost) -> C.Cost
 computeBoundWithSize tgraph allrules somerules tbounds sbounds prf = bigAdd $ do
-  (t,i) <- TG.incoming tgraph (fst $ unzip somerules)
+  (t,i) <- TG.incoming tgraph (IM.keys somerules)
   let
-    innerTBound = prf (fun . (!! i) . rhs . snd $ allrules !! t)
+    innerTBound = prf (fun . (!! i) . rhs $ allrules IM.! t)
     outerTBound = tbounds `TB.boundOf` t
     innerSBounds = SB.boundsOfVars sbounds (t,i)
   return $ outerTBound `mul` C.compose innerTBound innerSBounds

@@ -18,9 +18,11 @@ module Tct.Its.Data.LocalSizebounds
   ) where
 
 
-import           Control.Monad         (foldM, liftM)
-import           Data.Maybe (fromMaybe)
+import           Control.Monad         (liftM)
+import           Data.Maybe (fromMaybe, fromJust)
+import qualified Data.IntMap.Strict       as IM
 import qualified Data.Map.Strict       as M
+import Data.List (intersect)
 
 import qualified SLogic.Smt as SMT
 
@@ -42,7 +44,13 @@ import           Tct.Its.Data.Types
 type LocalSizebounds = M.Map RV (Cost, Growth)
 
 type APoly  = P.Polynomial SMT.IExpr Var
-type IPolyV = P.PView Int Var
+type IPolyV = P.PView Coefficient Var
+
+data Coefficient
+  = SomeCoefficient 
+  | RestrictCoefficient 
+  | IntCoefficient Int
+  deriving (Eq,Ord,Show)
 
 
 lboundOf :: LocalSizebounds -> RV -> Cost
@@ -54,45 +62,62 @@ lgrowthOf lbounds rv = snd (error err `fromMaybe` M.lookup rv lbounds)
   where err = "Tct.Its.Data.LocalSizebounds.lgrowthOf: key '" ++ show rv ++ "' not defined."
 
 
--- FIXME: require strongly linear interpretations as all other do not fit in current Growth classes
--- use linear programming for minimisation; check if localbound can be negative;
 compute :: Vars -> Rules -> IO LocalSizebounds
-compute vs = foldM k M.empty
-  where
-    k sbs ir = M.union sbs `liftM` compute' vs ir lpoly
-    lpoly    = P.linear (const (1 :: Int)) vs
+compute vs rs = M.unions `liftM` sequence (IM.foldrWithKey k [] rs)
+  where k i r acc = computeRule vs (i,r) : acc
 
-compute' :: Vars -> (Int,Rule) -> IPolyV -> IO LocalSizebounds
-compute' vs ir lpoly = M.fromList `liftM` mapM k (rvss vs ir)
-  where k (rv,rpoly,cpolys) = entscheide lpoly rpoly cpolys >>= \c -> return (rv,c)
+computeRule :: Vars -> (RuleId, Rule) -> IO LocalSizebounds
+computeRule vs ir = M.fromList `liftM` mapM k (rvss vs ir)
+  where k (rv,rpoly,cpolys) = computeVar vs rpoly cpolys >>= \c -> return (rv,c)
 
-rvss :: Vars -> (Int, Rule) -> [(RV, IPoly, [APoly])]
+rvss :: Vars -> (RuleId, Rule) -> [(RV, IPoly, [APoly])]
 rvss vs (ruleIdx, Rule _ rs cs) =
   [ (RV ruleIdx rhsIdx v,rpoly, cs')
     | (rhsIdx, r) <- zip [0..] rs, (v, rpoly) <- zip vs (args r) ]
   where cs' = [ P.mapCoefficients SMT.num p | Gte p _ <- filterLinear (toGte cs) ]
 
+computeVar :: Vars -> IPoly -> [APoly] -> IO (Cost, Growth)
+computeVar vs rpoly cpolys = fromJust `liftM` foldl1 liftMPlus
+  [ 
+  -- direct
+  return $ if not (P.isStronglyLinear rpoly) then unbounded else Nothing
+  , return $ if null cs then Just (poly rpoly, Max (abs c)) else Nothing
+  , return $ if rpoly' `elem` pvars then Just (poly rpoly, Max 0) else Nothing
+  -- indirect simple
+  , solveWith []
+  , solveWith' $ vs `intersect` P.variables rpoly
+  -- indirect
+  , solveWith vs
+  -- last resort
+  , return  unbounded ]
+  where 
+    (cs,c)    = P.coefficients' rpoly
+    pvars     = map P.variable vs
+    rpoly'    = P.mapCoefficients abs rpoly
+    unbounded = Just (Unknown, Unbounded)
+
+    solveWith ls = entscheide (P.linear k ls) rpoly cpolys
+      where k m = if m == one then SomeCoefficient else RestrictCoefficient
+    solveWith' [] = return Nothing
+    solveWith' ls = entscheide (P.linear k ls) rpoly cpolys
+      where k m = if m == one then IntCoefficient 0 else RestrictCoefficient
+    liftMPlus m1 m2 = m1 >>= \m1' -> maybe m2 (return . Just) m1'
+
+
 instance (SMT.Decode m c a, Additive a, Eq a)
   => SMT.Decode m (P.PView c Var) (P.Polynomial a Var) where
   decode = P.fromViewWithM SMT.decode
 
-entscheide :: IPolyV -> IPoly -> [APoly] -> IO (Cost, Growth)
+entscheide :: IPolyV -> IPoly -> [APoly] -> IO (Maybe (Cost, Growth))
 entscheide lview rpoly cpolys = do
-  res <- entscheide' lview rpoly cpolys False
-  case res of
-    SMT.Sat (lp,ap) -> return $ let r = poly lp `maximal` poly ap in (r,growth r)
-    _         -> do 
-      res' <- entscheide' lview rpoly cpolys False
-      return $ case res' of 
-        SMT.Sat (lp,ap) -> let r = poly lp `maximal` poly ap in (r,growth r)
-        _         -> (Unknown,Unbounded)
+  res <- entscheide' lview rpoly cpolys
+  return $ case res of
+    SMT.Sat (lp,ap) -> let r = poly lp `maximal` poly ap in Just (r,growth r)
+    _               -> Nothing
 
-  -- TODO: alternative instance for sat
-
-
-entscheide' :: IPolyV -> IPoly -> [APoly] -> Bool -> IO (SMT.Result (IPoly,IPoly))
-entscheide' lview rpoly cpolys withZeroConstant = do
-  res :: SMT.Result (IPoly,IPoly) <- SMT.solveStM (SMT.minismt' ["-m", "-ib", "1"]) $ do
+entscheide' :: IPolyV -> IPoly -> [APoly] -> IO (SMT.Result (IPoly,IPoly))
+entscheide' lview rpoly cpolys = do
+  res :: SMT.Result (IPoly,IPoly) <- SMT.solveStM SMT.yices $ do
     SMT.setFormat "QF_LIA"
 
     let
@@ -111,9 +136,9 @@ entscheide' lview rpoly cpolys withZeroConstant = do
           (p2,pc2) = P.splitConstantValue (bigAdd cs2)
         return $ absolute (p1 `sub` p2) SMT..&& (pc1 SMT..>= pc2)
 
-      restrictVar (_,m) 
-        | null (P.mvariables m) = SMT.ivarM' >>= \c' -> return (c',m)
-        | otherwise             = SMT.sivarM' >>= \c' -> return (c',m)
+      restrictVar (SomeCoefficient,m)     = SMT.ivarM' >>= \c' -> return (c',m)
+      restrictVar (RestrictCoefficient,m) = SMT.sivarM' >>= \c' -> return (c',m)
+      restrictVar (IntCoefficient i,m)    = return (SMT.num i, m)
 
 
     -- upper bound 
@@ -129,7 +154,6 @@ entscheide' lview rpoly cpolys withZeroConstant = do
 
     return $ SMT.decode (lapoly, uapoly)
   return res
-
 
 
 ppLocalSizebounds :: Vars -> LocalSizebounds -> PP.Doc

@@ -15,7 +15,8 @@ import           Tct.Its.Data.Types       (RuleId)
 
 type Timebounds = Bounds RuleId
 
+-- | @initialise all starts@ sets the complexity of @all@ to 'Unknown' and the complexity of @starts@ to @1@.
 initialise :: [RuleId] -> [RuleId] -> Timebounds
-initialise ids = foldl (\tbounds' i -> M.insert i one tbounds') tbounds
-  where tbounds = M.fromList (zip ids (repeat unknown))
+initialise allids = foldl (\tbounds' i -> M.insert i one tbounds') tbounds
+  where tbounds = M.fromList (zip allids (repeat unknown))
 

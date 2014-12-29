@@ -8,15 +8,17 @@ module Tct.Its.Data.Problem
   , closed
   , updateTimebounds
 
+  , Progress (..)
+  , progress
+
   , itsMode
   ) where
 
 
 import           Control.Monad                    (void)
 import qualified Data.Foldable                    as F (toList)
-import qualified Data.List                        as L (find)
-import qualified Data.Map                         as M
-import           Data.Maybe                       (fromMaybe)
+import qualified Data.Map.Strict                         as M
+import qualified Data.IntMap.Strict                         as IM
 
 import           Tct.Core.Common.Error            (TctError (..))
 import qualified Tct.Core.Common.Parser           as PR
@@ -35,7 +37,7 @@ import           Tct.Its.Data.Rule
 import           Tct.Its.Data.Sizebounds          (Sizebounds)
 import           Tct.Its.Data.Timebounds          (Timebounds)
 import qualified Tct.Its.Data.Timebounds          as TB
-import           Tct.Its.Data.TransitionGraph     (TGraph, estimateGraph, initialRules)
+import           Tct.Its.Data.TransitionGraph     (TGraph, estimateGraph)
 import           Tct.Its.Data.Types
 
 
@@ -43,6 +45,7 @@ data Its = Its
   { _irules          :: Rules
   , _signature       :: Signature
   , _startterm       :: Term
+  , _startrules      :: Rules
 
   , _tgraph          :: TGraph
   , _rvgraph         :: Maybe RVGraph
@@ -56,30 +59,32 @@ data Its = Its
 
 initialise :: ([Fun], [Var], [Rule]) -> Its
 initialise ([fs],_, rsl) = Its
-  { _irules          = irules
+  { _irules          = allRules
   , _signature       = mkSignature
 
   , _startterm       = Term fs (args $ lhs start)
+  , _startrules      = startRules
+
   , _tgraph          = tgraph
   , _rvgraph         = Nothing
 
-  , _timebounds      = TB.initialise ris (initialRules tgraph)
+  , _timebounds      = TB.initialise (IM.keys allRules) (IM.keys startRules)
   , _sizebounds      = Nothing
   , _localSizebounds = Nothing }
   where
-    start = error "startterm not defined" `fromMaybe` L.find (\r -> fun (lhs r) == fs) rsl
-    tgraph = estimateGraph irules
-    irules = zip [0..] rsl
-    ris = fst (unzip irules)
+    allRules   = IM.fromList $ zip [0..] rsl
+    startRules = IM.filter (\r -> fun (lhs r) == fs) allRules
+    start      = snd $ IM.findMin startRules
+    tgraph = estimateGraph allRules
     mkSignature = foldl M.union M.empty $ map k [ lhs r : rhs r | r <- rsl ]
       where k = foldl (\m t -> M.insert (fun t) (length $ args t) m) M.empty
 initialise _ = error "Problem.initialise: not implemented: multiple start symbols"
 
 
-validate :: Rules -> Bool
+validate :: [Rule] -> Bool
 validate = all validRule
   where
-    validRule (_,ru) = case rhs ru of
+    validRule ru = case rhs ru of
       [r] -> all P.isLinear (args r)
       _   -> False
 
@@ -95,6 +100,13 @@ domain = concatMap P.variables . args . _startterm
 closed :: Its -> Bool
 closed = TB.isDefined . _timebounds
 
+data Progress a = Progress a | NoProgress
+
+progress :: (T.Processor p, T.Forking p ~ T.Id) 
+  => p -> T.Problem p -> Progress (T.Problem p) -> T.ProofObject p -> T.Return (T.ProofTree (T.Problem p))
+progress p prob (Progress prob') proof = T.resultToTree p prob $  T.Success (T.Id prob') proof (\(T.Id c) -> c)
+progress p prob NoProgress proof       = T.resultToTree p prob $ T.Fail proof
+
 ppRules :: Rules -> TB.Timebounds -> PP.Doc
 ppRules rs tb =
   PP.table
@@ -105,11 +117,10 @@ ppRules rs tb =
     , (PP.AlignLeft, tbs)]
   where
     lhss = map (PP.pretty . lhs) rsl
-    rhss = map ((\p -> ppSpace PP.<> ppSep PP.<> ppSpace PP.<> p) . PP.pretty . rhs ) rsl
+    rhss = map ((\p -> PP.space PP.<> ppSep PP.<+> p PP.<> PP.space) . PP.pretty . rhs ) rsl
     css  = map (PP.pretty . con ) rsl
-    tbs  = map ((ppSpace PP.<>) . PP.pretty . (tb `TB.boundOf`)) is
-    ppSpace = PP.string "  "
-    (is, rsl) = unzip rs
+    tbs  = map ((PP.space PP.<>) . PP.pretty . (tb `TB.boundOf`)) is
+    (is, rsl) = unzip (IM.assocs rs)
 
 updateTimebounds :: Its -> TB.Timebounds -> Its
 updateTimebounds prob tb = prob { _timebounds = TB.updates (_timebounds prob) tb }
