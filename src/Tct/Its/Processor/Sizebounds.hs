@@ -7,11 +7,13 @@ module Tct.Its.Processor.Sizebounds
 
 import           Control.Monad.Trans              (liftIO)
 --import qualified Data.Graph.Inductive.Dot         as Gr
-import           Data.Maybe                       (fromJust, isJust)
+import           Data.Maybe                       (fromMaybe)
 
 import qualified Tct.Core.Common.Pretty           as PP
 import           Tct.Core (withProblem, (>>>))
-import           Tct.Core.Data
+import qualified Tct.Core.Data as T
+
+import           Tct.Common.ProofCombinators
 
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.LocalSizebounds     (LocalSizebounds)
@@ -24,12 +26,9 @@ import qualified Tct.Its.Data.Sizebounds          as SB (initialise, updateSizeb
 
 
 
--- MS: local sizebounds need SMT calls; 
 -- | Computes local sizebounds; Initialises global sizebounds.
-localSizebound :: Strategy Its
-localSizebound = Proc LocalSizeboundsProc
-
-
+localSizebound :: T.Strategy Its
+localSizebound = T.Proc LocalSizeboundsProc
 
 -- | Sets localSizebounds, rvgraph, sizebounds if not already defined.
 initialiseSizebounds :: Its -> IO Its
@@ -54,15 +53,15 @@ instance PP.Pretty LocalSizeboundsProof where
     PP.text "LocalSizebounds generated; rvgraph"
     PP.<$$> PP.indent 2 (PP.pretty vlbounds)
 
-instance Processor LocalSizeboundsProcessor where
-  type ProofObject LocalSizeboundsProcessor = LocalSizeboundsProof
+instance T.Processor LocalSizeboundsProcessor where
+  type ProofObject LocalSizeboundsProcessor = ApplicationProof LocalSizeboundsProof
   type Problem LocalSizeboundsProcessor     = Its
+
+  solve p prob | isClosed prob = return $ closedProof p prob
   solve p prob = do
     nprob <- liftIO $ initialiseSizebounds prob
-    let pproof = LocalSizeboundsProof (domain prob, fromJust $ _localSizebounds nprob) (fromJust $ _rvgraph nprob)
-    return $ resultToTree p prob $ Success (Id nprob) pproof (\(Id c) -> c)
-
-
+    let pproof = LocalSizeboundsProof (domain prob, error "proc sizeb" `fromMaybe` _localSizebounds nprob) (error "proc rv" `fromMaybe` _rvgraph nprob)
+    return $ progress p prob (Progress nprob) (Applicable pproof)
 
 
 
@@ -75,33 +74,36 @@ instance PP.Pretty SizeboundsProof where
     PP.text "Sizebounds computed:"
     PP.<$$> PP.indent 2 (PP.pretty vsbounds)
 
-instance Processor SizeboundsProcessor where
-  type ProofObject SizeboundsProcessor = SizeboundsProof
+instance T.Processor SizeboundsProcessor where
+  type ProofObject SizeboundsProcessor = ApplicationProof SizeboundsProof
   type Problem SizeboundsProcessor     = Its
-  solve p prob = return $ resultToTree p prob $
-    if (_sizebounds prob) /= (_sizebounds nprob) 
-      then Success (Id nprob) pproof (\(Id c) -> c)
-      else Fail $ pproof
+
+
+  solve p prob | isClosed prob = return $ closedProof p prob
+  solve p prob = return $
+    if _sizebounds prob /= _sizebounds nprob 
+      then progress p prob (Progress nprob) (Applicable pproof)
+      else progress p prob NoProgress (Applicable pproof)
     where 
       nprob = updateSizebounds prob
-      pproof = SizeboundsProof (domain prob, fromJust $ _sizebounds nprob)
+      pproof = SizeboundsProof (domain prob, error "sizebound" `fromMaybe` _sizebounds nprob)
 
 updateSizebounds :: Its -> Its
 updateSizebounds prob = prob {_sizebounds = Just sbounds'} where
   sbounds' = SB.updateSizebounds 
     (_tgraph prob) 
-    (fromJust $ _rvgraph prob) 
+    (error "update rvgraph" `fromMaybe` _rvgraph prob) 
     (_timebounds prob) 
-    (fromJust $ _sizebounds prob)  
-    (fromJust $ _localSizebounds prob)
+    (error "update sizebounds" `fromMaybe` _sizebounds prob)  
+    (error "update localsizebounds" `fromMaybe` _localSizebounds prob)
 
 -- | Updates sizebounds.
-sizebounds :: Strategy Its
+sizebounds :: T.Strategy Its
 sizebounds = withProblem $ 
-  \prob -> if isJust (_sizebounds prob) then sb else localSizebound >>> sb
-  where sb = Proc SizeboundsProc
+  \prob -> if sizeIsDefined prob then sb else localSizebound >>> sb
+  where sb = T.Proc SizeboundsProc
 
-sizeboundsDeclaration :: Declaration ('[] :-> Strategy Its)
-sizeboundsDeclaration = declare "sizebounds" [desc] () sizebounds
+sizeboundsDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
+sizeboundsDeclaration = T.declare "sizebounds" [desc] () sizebounds
   where desc = "Computes global sizebounds using timebounds."
 

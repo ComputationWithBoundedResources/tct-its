@@ -1,6 +1,6 @@
-module Tct.Its.Data.Cost
+module Tct.Its.Data.Complexity
   (
-  Cost (..)
+  Complexity (..)
 
   , unknown
   , poly
@@ -27,7 +27,7 @@ import           Tct.Common.Ring
 
 import Tct.Its.Data.Types (IPoly, Var)
 
-data Cost
+data Complexity
   = Unknown
   | NPoly IPoly
   deriving (Eq, Show)
@@ -38,32 +38,32 @@ data Growth
   | SumPlus Int  -- ^ > x' = y + z; but not x' = x + z
   | Unbounded deriving (Eq,Ord,Show)
 
-ppCost :: Cost -> PP.Doc
-ppCost Unknown   = PP.char '?'
-ppCost (NPoly p) = PP.pretty p
+ppComplexity :: Complexity -> PP.Doc
+ppComplexity Unknown   = PP.char '?'
+ppComplexity (NPoly p) = PP.pretty p
 
-instance PP.Pretty Cost where
-  pretty = ppCost
+instance PP.Pretty Complexity where
+  pretty = ppComplexity
 
 
-unknown :: Cost
+unknown :: Complexity
 unknown = Unknown
 
-poly :: IPoly -> Cost
+poly :: IPoly -> Complexity
 poly = NPoly . P.mapCoefficients abs
 
-compareCost :: Cost -> Cost -> Maybe Ordering
-compareCost Unknown Unknown   = Just EQ
-compareCost Unknown (NPoly _) = Just GT
-compareCost (NPoly _) Unknown = Just LT
-compareCost (NPoly p1) (NPoly p2)
+compareComplexity :: Complexity -> Complexity -> Maybe Ordering
+compareComplexity Unknown Unknown   = Just EQ
+compareComplexity Unknown (NPoly _) = Just GT
+compareComplexity (NPoly _) Unknown = Just LT
+compareComplexity (NPoly p1) (NPoly p2)
   | all (==0) cs = Just EQ
   | all (>=0) cs = Just GT
   | all (<=0) cs = Just LT
   | otherwise    = Nothing
   where cs = P.coefficients (p1 `sub` p2)
 
-toComplexity :: Cost -> T.Complexity
+toComplexity :: Complexity -> T.Complexity
 toComplexity Unknown = T.Unknown
 toComplexity (NPoly p)
   | deg < 0   = T.Poly Nothing
@@ -72,13 +72,13 @@ toComplexity (NPoly p)
 
 -- TODO: better bounds
 -- minimum if computable
-minimal :: Cost -> Cost -> Cost
-minimal c1 Unknown = c1
+-- | left biased minimum
+minimal :: Complexity -> Complexity -> Complexity
 minimal Unknown c2 = c2
 minimal c1 _       = c1
 
-maximal :: Cost -> Cost -> Cost
-maximal c1 c2 = case compareCost c1 c2 of
+maximal :: Complexity -> Complexity -> Complexity
+maximal c1 c2 = case compareComplexity c1 c2 of
   Just EQ -> c1
   Just GT -> c1
   Just LT -> c2
@@ -86,29 +86,29 @@ maximal c1 c2 = case compareCost c1 c2 of
     (NPoly p1, NPoly p2) -> NPoly $ P.zipCoefficientsWith max p1 p2
     _                    -> c1 `cadd` c2
 
-cadd :: Cost -> Cost -> Cost
+cadd :: Complexity -> Complexity -> Complexity
 cadd Unknown _             = Unknown
 cadd _ Unknown             = Unknown
 cadd (NPoly p1) (NPoly p2) = NPoly (p1 `add` p2)
 
-cmul :: Cost -> Cost -> Cost
+cmul :: Complexity -> Complexity -> Complexity
 cmul Unknown _             = Unknown
 cmul _ Unknown             = Unknown
 cmul (NPoly p1) (NPoly p2) = NPoly (p1 `mul` p2)
 
-instance Additive Cost where
+instance Additive Complexity where
   zero = NPoly (P.constant 0)
   add  = cadd
 
-instance Multiplicative Cost where
+instance Multiplicative Complexity where
   one = NPoly (P.constant 1)
   mul = cmul
 
-activeVariables :: Cost -> [Var]
+activeVariables :: Complexity -> [Var]
 activeVariables Unknown   = []
 activeVariables (NPoly p) = P.variables p
 
-compose :: Cost -> M.Map Var Cost -> Cost
+compose :: Complexity -> M.Map Var Complexity -> Complexity
 compose Unknown _ = Unknown
 compose c@(NPoly p) m 
   | all (`elem` defined) (activeVariables c) = poly $ P.substituteVariables p (M.fromAscList polys)
@@ -118,7 +118,7 @@ compose c@(NPoly p) m
     defined = fst (unzip polys)
 
 
-growth :: Cost -> Growth
+growth :: Complexity -> Growth
 growth Unknown = Unbounded
 growth (NPoly p)
   | not (P.isStronglyLinear p) = Unbounded

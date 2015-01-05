@@ -36,11 +36,11 @@ import qualified SLogic.Smt                   as SMT
 import qualified Tct.Core.Common.Pretty       as PP
 import           Tct.Core.Common.SemiRing
 import qualified Tct.Core.Data                as T
-import qualified Tct.Core.Combinators         as T
 
+import           Tct.Common.ProofCombinators
 import qualified Tct.Common.Polynomial        as P
 
-import           Tct.Its.Data.Cost
+import           Tct.Its.Data.Complexity
 import           Tct.Its.Data.Problem
 import qualified Tct.Its.Data.Timebounds      as TB
 import qualified Tct.Its.Data.TransitionGraph as TG
@@ -55,7 +55,7 @@ data PropagationProcessor
 data PropagationProof
   = PropagationProof
     { pproc_ :: PropagationProcessor
-    , times_ :: TB.Timebounds }
+    , times_ :: TB.TimeboundsMap }
   | NoPropagation
   deriving Show
 
@@ -66,16 +66,18 @@ instance PP.Pretty PropagationProof where
     KnowledgePropagation -> PP.text "We propagate bounds from predecessors."
 
 instance T.Processor PropagationProcessor where
-  type ProofObject PropagationProcessor = PropagationProof
+  type ProofObject PropagationProcessor = ApplicationProof PropagationProof
   type Problem PropagationProcessor     = Its
 
-  solve p prob = return $ case solve' prob of
-    Nothing                -> progress p prob NoProgress NoPropagation
-    Just (pproof, newprob) -> progress p prob (Progress newprob) pproof
-    where
-      solve' = case p of
-        TrivialSCCs          -> solveTrivialSCCs
-        KnowledgePropagation -> solveKnowledgePropagation
+  solve p prob  
+    | isClosed prob = return $ closedProof p prob
+    | otherwise     = return $ case solve' prob of
+        Nothing                -> progress p prob NoProgress (Applicable NoPropagation)
+        Just (pproof, newprob) -> progress p prob (Progress newprob) (Applicable pproof)
+        where
+          solve' = case p of
+            TrivialSCCs          -> solveTrivialSCCs
+            KnowledgePropagation -> solveKnowledgePropagation
 
 
 -- trivial sccs
@@ -88,8 +90,8 @@ solveTrivialSCCs prob
     pptimes = [(scc,c) | scc <- sccs, scc `notElem` TB.defined (_timebounds prob), let c = one]
     pproof = PropagationProof
       { pproc_ = TrivialSCCs
-      , times_ = M.fromList pptimes }
-    newprob = prob {_timebounds = TB.union new old }
+      , times_ = IM.fromList pptimes }
+    newprob = prob {_timebounds = TB.inserts old new }
       where (old,new) = (_timebounds prob, times_ pproof)
 
 boundTrivialSCCs :: T.Strategy Its
@@ -106,11 +108,11 @@ boundTrivialSCCsDeclaration = T.declare "simp" [desc]  () boundTrivialSCCs
 solveKnowledgePropagation :: Its -> Maybe (PropagationProof, Its)
 solveKnowledgePropagation prob = case propagateRules tgraph tbounds rs of
   ([],_)       -> Nothing
-  (_,tbounds') -> Just (mkPProof tbounds', prob {_timebounds = tbounds'})
+  (ris,tbounds') -> Just (mkPProof ris tbounds', prob {_timebounds = tbounds'})
   where
-    mkPProof tbounds' = PropagationProof
+    mkPProof ris tbounds' = PropagationProof
       { pproc_ = KnowledgePropagation
-      , times_ = M.intersection tbounds' tbounds}
+      , times_ = IM.fromList $ map (\ri -> (ri,tbounds' `TB.tboundOf` ri)) ris }
     tbounds = _timebounds prob
     tgraph  = _tgraph prob
     rs      = Gr.topsort tgraph
@@ -119,7 +121,7 @@ propagateRules :: TG.TGraph -> TB.Timebounds -> [RuleId] -> ([RuleId],TB.Timebou
 propagateRules tgraph tbounds = foldl k ([],tbounds)
   where
     k acc@(ps,tbound) r
-      | tbound `TB.boundOf` r /= Unknown = acc
+      | tbound `TB.tboundOf` r /= Unknown = acc
       | otherwise = case propagateRule tgraph tbound r of
           Nothing -> acc
           (Just tbound') -> (r:ps,tbound')
@@ -128,7 +130,7 @@ propagateRule :: TG.TGraph -> TB.Timebounds -> RuleId -> Maybe TB.Timebounds
 propagateRule tgraph tbounds ru
   | ppbound == Unknown = Nothing
   | otherwise          = Just (TB.update ru ppbound tbounds)
-  where ppbound = bigAdd [ tbounds `TB.boundOf` t | (t,_) <- TG.predecessors tgraph ru ]
+  where ppbound = bigAdd [ tbounds `TB.tboundOf` t | (t,_) <- TG.predecessors tgraph ru ]
 
 
 knowledgePropagation :: T.Strategy Its
@@ -171,9 +173,10 @@ instance PP.Pretty RuleRemovalProof where
 -- * Rechability
 
 instance T.Processor RuleRemovalProcessor where
-  type ProofObject RuleRemovalProcessor = RuleRemovalProof
+  type ProofObject RuleRemovalProcessor = ApplicationProof RuleRemovalProof
   type Problem RuleRemovalProcessor     = Its
 
+  solve p prob | isClosed prob       = return $ closedProof p prob
   solve UnsatRules prob       = solveUnsatRules prob
   solve UnreachableRules prob = return $ solveUnreachableRules prob
   solve LeafRules prob        = return $ solveLeafRules prob
@@ -185,7 +188,7 @@ removeRules irs prob = prob
   , _tgraph          = Gr.delNodes irs (_tgraph prob)
   -- MS: TODO filter wrt to labels
   , _rvgraph         = Nothing
-  , _timebounds      = M.filterWithKey (\k _ -> k `notElem` irs) (_timebounds prob)
+  , _timebounds      = TB.filterRules (`notElem` irs) (_timebounds prob)
   , _sizebounds      = M.filterWithKey (\rv _ -> rvRule rv `notElem` irs) `fmap` _sizebounds prob
   , _localSizebounds = M.filterWithKey (\rv _ -> rvRule rv `notElem` irs) `fmap` _localSizebounds prob }
 
@@ -195,8 +198,8 @@ solveUnsatRules prob = do
       res <- F.sequence $ IM.map entscheide allrules
       return $ IM.keys $ IM.filter isUnsat res
   return $ if null unsats
-    then progress p prob NoProgress (NoRuleRemovalProof p)
-    else progress p prob (Progress $ removeRules unsats prob) (RuleRemovalProof p unsats)
+    then progress p prob NoProgress (Applicable (NoRuleRemovalProof p))
+    else progress p prob (Progress $ removeRules unsats prob) (Applicable (RuleRemovalProof p unsats))
   where
     p = UnsatRules
     allrules = _irules prob
@@ -220,8 +223,8 @@ solveUnreachableRules :: Its -> T.Return (T.ProofTree Its)
 solveUnreachableRules prob =
   let unreachable = Gr.nodes tgraph `minus` Gr.dfs starts tgraph in
   if null unreachable
-    then progress p prob NoProgress (NoRuleRemovalProof p)
-    else progress p prob (Progress $ removeRules unreachable prob) (RuleRemovalProof p unreachable)
+    then progress p prob NoProgress (Applicable (NoRuleRemovalProof p))
+    else progress p prob (Progress $ removeRules unreachable prob) (Applicable (RuleRemovalProof p unreachable))
   where
     p         = UnreachableRules
     tgraph    = _tgraph prob
@@ -232,8 +235,8 @@ solveLeafRules :: Its -> T.Return (T.ProofTree Its)
 solveLeafRules prob =
   let leafs = solveLeafRule (_tgraph prob) [] in
   if null leafs
-    then progress p prob NoProgress (NoRuleRemovalProof p)
-    else progress p prob (Progress $ removeRules leafs prob) (RuleRemovalProof p leafs)
+    then progress p prob NoProgress (Applicable (NoRuleRemovalProof p))
+    else progress p prob (Progress $ removeRules leafs prob) (Applicable (RuleRemovalProof p leafs))
   where
     p         = LeafRules
     isLeave gr n = Gr.outdeg gr n == 0

@@ -6,12 +6,15 @@ module Tct.Its.Data.TransitionGraph
   -- * Queries
   {-, initialRules -}
   , predecessors
+  , successors
+  , bridge
   , incoming
   , sccs
   , trivialSCCs
   ) where
 
 
+import Control.Monad (void)
 import qualified Data.Set as S
 import qualified Data.IntMap as IM
 import qualified Data.Graph.Inductive as Gr
@@ -36,7 +39,7 @@ estimateGraphWith :: (Rule -> Rule -> [Int])  -> Rules -> TGraph
 estimateGraphWith f rules = Gr.mkGraph ns es
   where 
     irs = IM.toList rules
-    ns  = map (fmap (const ())) irs
+    ns  = map void irs
     es  = [ (n1, n2, cid) | (n1,r1) <- irs, (n2,r2) <- irs, cid <- f r1 r2 ]
 
 -- | Only compares the function symbol.
@@ -49,6 +52,16 @@ functionSymbols r1 r2 = [ cid | (cid,r) <- zip [0..] (rhs r1), fun r == fun (lhs
 
 predecessors :: TGraph -> RuleId -> [RV']
 predecessors = Gr.lpre
+
+successors :: TGraph -> RuleId -> [RV']
+successors = Gr.lsuc
+
+bridge :: TGraph -> RuleId -> [RuleId] -> TGraph
+bridge gr old new = 
+  Gr.insEdges (pres ++ sucs) $ Gr.insNodes (map (\n -> (n,())) new) $ Gr.delNode old gr
+  where 
+   pres = [ (pre, n, rhsIdx) | (pre,rhsIdx) <- Gr.lpre gr old, n <- new ]
+   sucs = [ (n, suc, 0) | suc <- Gr.suc gr old, n <- new ]
 
 sccs :: TGraph -> [[RuleId]]
 sccs = Gr.scc

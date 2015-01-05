@@ -57,21 +57,22 @@ Library
   exposed-modules:
     Tct.Its
     Tct.Its.Data
-    Tct.Its.Data.Smt
     Tct.Its.Data.Bounds
-    Tct.Its.Data.Cost
-    Tct.Its.Data.TransitionGraph
-    Tct.Its.Data.ResultVariableGraph
+    Tct.Its.Data.Complexity
+    Tct.Its.Data.LocalSizebounds
     Tct.Its.Data.Problem
+    Tct.Its.Data.ResultVariableGraph
     Tct.Its.Data.Rule
     Tct.Its.Data.Sizebounds
+    Tct.Its.Data.Smt
     Tct.Its.Data.Timebounds
+    Tct.Its.Data.TransitionGraph
     Tct.Its.Data.Types
-    Tct.Its.Data.LocalSizebounds
-    Tct.Its.Processor.Sizebounds
+    Tct.Its.Processor.Chaining
+    Tct.Its.Processor.Empty
     Tct.Its.Processor.PolyRank
     Tct.Its.Processor.Simplification
-    Tct.Its.Processor.Empty
+    Tct.Its.Processor.Sizebounds
   build-depends:
     containers       >= 0.5 && < 0.6,
     mtl              >= 2.1 && < 2.2,

@@ -23,9 +23,10 @@ import           Tct.Its.Data.ResultVariableGraph (RVGraph)
 import qualified Tct.Its.Data.ResultVariableGraph as RVG
 import           Tct.Its.Data.TransitionGraph (TGraph)
 import qualified Tct.Its.Data.TransitionGraph as TG
-import           Tct.Its.Data.Cost
+import           Tct.Its.Data.Complexity
 import           Tct.Its.Data.Bounds
 import           Tct.Its.Data.Timebounds (Timebounds)
+import qualified Tct.Its.Data.Timebounds as TB
 import           Tct.Its.Data.LocalSizebounds (LocalSizebounds)
 import qualified Tct.Its.Data.LocalSizebounds as LB
 import           Tct.Its.Data.Types
@@ -46,7 +47,7 @@ updateSizebounds tgraph rvgraph tbounds sbounds lbounds = foldl k sbounds (RVG.s
 
 
 
-boundsOfVars :: Sizebounds -> (Int,Int) -> M.Map Var Cost
+boundsOfVars :: Sizebounds -> (Int,Int) -> M.Map Var Complexity
 boundsOfVars sbounds (t1,i1) = M.fromList [ (v,c) | (RV  t i v ,c) <- M.assocs sbounds , t == t1, i == i1 ]
 
 -- sizebound for trivial SCCs
@@ -89,31 +90,31 @@ classify lbounds = foldl k ([],[],[],[])
       
 
 
-sizeboundOf :: Timebounds -> Sizebounds -> LocalSizebounds -> RVGraph -> [RV] -> [(RV,Int)] -> [(RV,Int)] -> [(RV,Int)] -> Cost
+sizeboundOf :: Timebounds -> Sizebounds -> LocalSizebounds -> RVGraph -> [RV] -> [(RV,Int)] -> [(RV,Int)] -> [(RV,Int)] -> Complexity
 sizeboundOf tbounds sbounds lbounds rvgraph scc ms mps sps=
   sizeboundMax sbounds rvgraph scc ms
   `add` sizeboundMaxPlus tbounds mps
   `add` sizeboundSumPlus tbounds sbounds lbounds rvgraph scc sps
 
-sizeboundsIncoming :: Sizebounds -> RVGraph -> [RV] -> [Cost]
+sizeboundsIncoming :: Sizebounds -> RVGraph -> [RV] -> [Complexity]
 sizeboundsIncoming sbounds rvgraph = map (sbounds `boundOf`) . RVG.incoming rvgraph
 
-sizeboundMax :: Sizebounds -> RVGraph -> [RV] -> [(RV,Int)] -> Cost
+sizeboundMax :: Sizebounds -> RVGraph -> [RV] -> [(RV,Int)] -> Complexity
 sizeboundMax sbounds rvgraph scc ms = foldl1 maximal (constBound: incomBounds)
   where 
     constBound = poly . P.constant . maximum . (0:) . snd $ unzip ms
     incomBounds = sizeboundsIncoming sbounds rvgraph scc
 
 -- | 
-sizeboundMaxPlus :: Timebounds -> [(RV, Int)] -> Cost
+sizeboundMaxPlus :: Timebounds -> [(RV, Int)] -> Complexity
 sizeboundMaxPlus tbounds mps = bigAdd $ map k mps
-  where k (rv,i) = (tbounds `boundOf` rvRule rv) `mul` poly (P.constant i)
+  where k (rv,i) = (tbounds `TB.tboundOf` rvRule rv) `mul` poly (P.constant i)
 
 
-sizeboundSumPlus :: Timebounds -> Sizebounds -> LocalSizebounds -> RVGraph -> [RV] -> [(RV, Int)] -> Cost
+sizeboundSumPlus :: Timebounds -> Sizebounds -> LocalSizebounds -> RVGraph -> [RV] -> [(RV, Int)] -> Complexity
 sizeboundSumPlus tbounds sbounds lbounds rvgraph scc sps = bigAdd $ map k sps
   where 
-    k (rv,i) = (tbounds `boundOf` rvRule rv) `mul` ( poly (P.constant i) `add` bigAdd (map (f rv) (vars rv)))
+    k (rv,i) = (tbounds `TB.tboundOf` rvRule rv) `mul` ( poly (P.constant i) `add` bigAdd (map (f rv) (vars rv)))
     vars rv = activeVariables (lbounds `LB.lboundOf` rv) L.\\ cyclicDependencies rvgraph scc rv
     f rv v = foldl maximal zero [ sbounds `boundOf` rv' | rv' <- RVG.predecessors rvgraph rv, v == rvVar rv' ]
 

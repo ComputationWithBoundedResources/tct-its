@@ -23,19 +23,19 @@ import           Data.Maybe (fromMaybe)
 import qualified Tct.Core.Common.Pretty as PP
 import Tct.Core.Common.SemiRing (bigAdd)
 
-import Tct.Its.Data.Cost
+import Tct.Its.Data.Complexity
 
-type Bounds k = M.Map k Cost
+type Bounds k = M.Map k Complexity
 
 
 empty :: Bounds k
 empty = M.empty
 
-boundOf :: (Ord k, Show k) => Bounds k -> k -> Cost
+boundOf :: (Ord k, Show k) => Bounds k -> k -> Complexity
 boundOf bounds k = error err `fromMaybe` M.lookup k bounds
   where err = "Tct.Its.Data.Bounds.boundOf: key '" ++ show k ++ "' not defined."
 
-totalBound :: Bounds k -> Cost
+totalBound :: Bounds k -> Complexity
 totalBound = bigAdd . M.elems
 
 
@@ -49,14 +49,14 @@ nonDefined = M.keys . M.filter (== unknown)
 defined :: Bounds k -> [k] 
 defined = M.keys . M.filter (/= unknown)
 
-insert :: Ord k => k -> Cost -> Bounds k -> Bounds k
+insert :: Ord k => k -> Complexity -> Bounds k -> Bounds k
 insert = M.insert
 
 
 union :: Ord k => Bounds k -> Bounds k -> Bounds k
 union = M.union
 
-update :: Ord k => k -> Cost -> Bounds k -> Bounds k
+update :: Ord k => k -> Complexity -> Bounds k -> Bounds k
 update r c = M.adjust (minimal c) r
 
 updates :: Ord k => Bounds k -> Bounds k -> Bounds k

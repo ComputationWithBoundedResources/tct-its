@@ -19,7 +19,7 @@ module Tct.Its.Data.LocalSizebounds
 
 
 import           Control.Monad         (liftM)
-import           Data.Maybe (fromMaybe, fromJust)
+import           Data.Maybe (fromMaybe)
 import qualified Data.IntMap.Strict       as IM
 import qualified Data.Map.Strict       as M
 import Data.List (intersect)
@@ -31,7 +31,7 @@ import qualified Tct.Common.Polynomial as P
 import           Tct.Common.Ring
 
 import           Tct.Its.Data.Smt ()
-import           Tct.Its.Data.Cost
+import           Tct.Its.Data.Complexity
 import           Tct.Its.Data.Rule
 import           Tct.Its.Data.Types
 
@@ -41,7 +41,7 @@ import           Tct.Its.Data.Types
 
 
 
-type LocalSizebounds = M.Map RV (Cost, Growth)
+type LocalSizebounds = M.Map RV (Complexity, Growth)
 
 type APoly  = P.Polynomial SMT.IExpr Var
 type IPolyV = P.PView Coefficient Var
@@ -53,7 +53,7 @@ data Coefficient
   deriving (Eq,Ord,Show)
 
 
-lboundOf :: LocalSizebounds -> RV -> Cost
+lboundOf :: LocalSizebounds -> RV -> Complexity
 lboundOf lbounds rv = fst (error err `fromMaybe` M.lookup rv lbounds)
   where err = "Tct.Its.Data.LocalSizebounds.lboundOf: key '" ++ show rv ++ "' not defined."
 
@@ -76,8 +76,8 @@ rvss vs (ruleIdx, Rule _ rs cs) =
     | (rhsIdx, r) <- zip [0..] rs, (v, rpoly) <- zip vs (args r) ]
   where cs' = [ P.mapCoefficients SMT.num p | Gte p _ <- filterLinear (toGte cs) ]
 
-computeVar :: Vars -> IPoly -> [APoly] -> IO (Cost, Growth)
-computeVar vs rpoly cpolys = fromJust `liftM` foldl1 liftMPlus
+computeVar :: Vars -> IPoly -> [APoly] -> IO (Complexity, Growth)
+computeVar vs rpoly cpolys = fromMaybe (error "computeVar") `liftM` foldl1 liftMPlus
   [ 
   -- direct
   return $ if not (P.isStronglyLinear rpoly) then unbounded else Nothing
@@ -85,7 +85,8 @@ computeVar vs rpoly cpolys = fromJust `liftM` foldl1 liftMPlus
   , return $ if rpoly' `elem` pvars then Just (poly rpoly, Max 0) else Nothing
   -- indirect simple
   , solveWith []
-  , solveWith' $ vs `intersect` P.variables rpoly
+  , solveWith' commonvs
+  , solveWith commonvs
   -- indirect
   , solveWith vs
   -- last resort
@@ -95,6 +96,7 @@ computeVar vs rpoly cpolys = fromJust `liftM` foldl1 liftMPlus
     pvars     = map P.variable vs
     rpoly'    = P.mapCoefficients abs rpoly
     unbounded = Just (Unknown, Unbounded)
+    commonvs  = vs `intersect` P.variables rpoly
 
     solveWith ls = entscheide (P.linear k ls) rpoly cpolys
       where k m = if m == one then SomeCoefficient else RestrictCoefficient
@@ -108,7 +110,7 @@ instance (SMT.Decode m c a, Additive a, Eq a)
   => SMT.Decode m (P.PView c Var) (P.Polynomial a Var) where
   decode = P.fromViewWithM SMT.decode
 
-entscheide :: IPolyV -> IPoly -> [APoly] -> IO (Maybe (Cost, Growth))
+entscheide :: IPolyV -> IPoly -> [APoly] -> IO (Maybe (Complexity, Growth))
 entscheide lview rpoly cpolys = do
   res <- entscheide' lview rpoly cpolys
   return $ case res of

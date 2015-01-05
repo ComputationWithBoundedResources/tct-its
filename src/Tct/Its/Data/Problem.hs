@@ -5,10 +5,13 @@ module Tct.Its.Data.Problem
 
   --, rvss
   , domain
-  , closed
+  , sizeIsDefined
+  , isClosed
+  , closedProof
   , updateTimebounds
 
   , Progress (..)
+  , hasProgress
   , progress
 
   , itsMode
@@ -16,21 +19,21 @@ module Tct.Its.Data.Problem
 
 
 import           Control.Monad                    (void)
-import qualified Data.Foldable                    as F (toList)
-import qualified Data.Map.Strict                         as M
-import qualified Data.IntMap.Strict                         as IM
+import qualified Data.IntMap.Strict               as IM
+import qualified Data.Map.Strict                  as M
+import           Data.Maybe                       (isJust)
 
 import           Tct.Core.Common.Error            (TctError (..))
 import qualified Tct.Core.Common.Parser           as PR
 import qualified Tct.Core.Common.Pretty           as PP
-import qualified Tct.Core.Data as T
+import qualified Tct.Core.Data                    as T
 import           Tct.Core.Main                    (TctMode (..), unit)
 import           Tct.Core.Processor.Trivial       (failing)
 
-import qualified Tct.Common.Answer           as A
+import           Tct.Common.ProofCombinators
+import qualified Tct.Common.Answer                as A
 import qualified Tct.Common.Polynomial            as P
 
-import           Tct.Its.Data.Cost
 import           Tct.Its.Data.LocalSizebounds     (LocalSizebounds)
 import           Tct.Its.Data.ResultVariableGraph (RVGraph)
 import           Tct.Its.Data.Rule
@@ -55,7 +58,8 @@ data Its = Its
   , _localSizebounds :: Maybe LocalSizebounds
   } deriving Show
 
-
+sizeIsDefined :: Its -> Bool
+sizeIsDefined prob = isJust (_rvgraph prob) && isJust (_sizebounds prob) && isJust (_localSizebounds prob)
 
 initialise :: ([Fun], [Var], [Rule]) -> Its
 initialise ([fs],_, rsl) = Its
@@ -97,12 +101,16 @@ domain :: Its -> Vars
 domain = concatMap P.variables . args . _startterm
 
 
-closed :: Its -> Bool
-closed = TB.isDefined . _timebounds
+isClosed :: Its -> Bool
+isClosed = TB.allDefined . _timebounds
+
+closedProof :: (T.Processor p, T.Forking p     ~ T.Id, T.ProofObject p ~ ApplicationProof p1) 
+  => p -> T.Problem p -> T.Return (T.ProofTree (T.Problem p))   
+closedProof p prob = progress p prob NoProgress (Inapplicable "The problem is already closed. Nothing to be done.")
 
 data Progress a = Progress a | NoProgress
 
-progress :: (T.Processor p, T.Forking p ~ T.Id) 
+progress :: (T.Processor p, T.Forking p ~ T.Id)
   => p -> T.Problem p -> Progress (T.Problem p) -> T.ProofObject p -> T.Return (T.ProofTree (T.Problem p))
 progress p prob (Progress prob') proof = T.resultToTree p prob $  T.Success (T.Id prob') proof (\(T.Id c) -> c)
 progress p prob NoProgress proof       = T.resultToTree p prob $ T.Fail proof
@@ -119,10 +127,14 @@ ppRules rs tb =
     lhss = map (PP.pretty . lhs) rsl
     rhss = map ((\p -> PP.space PP.<> ppSep PP.<+> p PP.<> PP.space) . PP.pretty . rhs ) rsl
     css  = map (PP.pretty . con ) rsl
-    tbs  = map ((PP.space PP.<>) . PP.pretty . (tb `TB.boundOf`)) is
+    tbs  = map ((PP.space PP.<>) . PP.pretty . (tb `TB.tboundOf`)) is
     (is, rsl) = unzip (IM.assocs rs)
 
-updateTimebounds :: Its -> TB.Timebounds -> Its
+
+hasProgress :: Its -> TB.TimeboundsMap -> Bool
+hasProgress prob = TB.hasProgress (_timebounds prob)
+
+updateTimebounds :: Its -> TB.TimeboundsMap -> Its
 updateTimebounds prob tb = prob { _timebounds = TB.updates (_timebounds prob) tb }
 
 instance PP.Pretty Its where
@@ -143,16 +155,16 @@ itsMode = TctMode
   , modeDefaultStrategy = failing
   , modeOptions         = unit
   , modeModifyer        = const
-  , modeAnswer          = answering }
+  , modeAnswer          = A.answering }
 
-answering :: T.Return (T.ProofTree Its) -> T.SomeAnswer
-answering (T.Abort _)     = T.answer A.Unknown
-answering (T.Continue pt) = T.answer . toAnswer . toComplexity $ case F.toList pt of
-  [prob] -> TB.totalBound (_timebounds prob)
-  _      -> unknown
-  where
-    toAnswer T.Unknown = A.Unknown
-    toAnswer c         = A.Yes(T.Unknown, c)
+--answering :: T.Return (T.ProofTree Its) -> T.SomeAnswer
+--answering (T.Abort _)     = T.answer A.Unknown
+--answering (T.Continue pt) = T.answer . toAnswer . toComplexity $ case F.toList pt of
+  --[prob] -> TB.totalBound (_timebounds prob)
+  --_      -> unknown
+  --where
+    --toAnswer T.Unknown = A.Unknown
+    --toAnswer c         = A.Yes(T.Unknown, c)
 
 --- parse
 

@@ -15,6 +15,8 @@ module Tct.Its.Data.Rule
   , Rules
   , Vars
 
+  , chain
+
   -- TODO: move
   , ppSep
   , Parser
@@ -22,6 +24,8 @@ module Tct.Its.Data.Rule
   ) where
 
 
+import qualified Data.Set as S
+import qualified Data.Map.Strict as M
 import Control.Monad (void)
 import Control.Applicative
 import qualified Text.Parsec.Expr as PE
@@ -32,8 +36,6 @@ import qualified Tct.Core.Common.Pretty as PP
 import qualified Tct.Core.Common.Parser as PR
 
 import Tct.Its.Data.Types
-
-
 
 isLinearA :: Atom -> Bool
 isLinearA (Eq p1 p2)  = P.isLinear p1 && P.isLinear p2
@@ -46,6 +48,12 @@ toGteA (Gte p1 p2) = [Gte (p1 `sub` p2) zero]
 interpretTerm :: (Fun -> [a] -> a) -> (IPoly -> a) -> Term -> a
 interpretTerm f g t = f (fun t) (map g (args t))
 
+mapTerm :: (Fun -> Fun) -> (IPoly -> IPoly) -> Term -> Term
+mapTerm f g (Term fs as) = Term (f fs) (map g as)
+
+foldTerm :: (a -> IPoly -> a) -> a -> Term -> a
+foldTerm f a (Term _ as) = foldl f a as
+
 
 isLinear :: Constraint -> Bool
 isLinear = all isLinearA
@@ -57,7 +65,54 @@ toGte :: Constraint -> Constraint
 toGte = concatMap toGteA
 
 
+mapRule :: (IPoly -> IPoly) -> Rule -> Rule
+mapRule f (Rule l r cs) = Rule (mapTerm id f l) (map (mapTerm id f) r) (map k cs)
+  where
+    k (Eq p1 p2)  = Eq (f p1) (f p2)
+    k (Gte p1 p2) = Gte (f p1) (f p2)
 
+foldRule :: (a -> IPoly -> a) -> a -> Rule -> a
+foldRule f a (Rule l r cs) = cfold $ rfold $ lfold a
+  where
+    lfold b = foldTerm f b l
+    rfold b = foldl (foldTerm f) b r
+    cfold b = foldl f b css
+    css = concatMap k cs 
+    k (Eq e1 e2)  = [e1,e2]
+    k (Gte e1 e2) = [e1,e2]
+
+-- | @rename r1 r2@ renames rule @r2@ wrt to rule @r1@.
+rename :: Rule -> Rule -> Rule
+rename r1 r2 = rename' (renamer r2)
+  where
+    renamer = mapRule (P.rename (++ "$"))
+    r1vars = variables r1
+    rename' r
+      | S.null (variables r `S.intersection` r1vars) = r
+      | otherwise                               = rename' (renamer r)
+
+variables :: Rule -> S.Set Var
+variables = foldRule (\acc r -> acc `S.union` S.fromList (P.variables r)) S.empty
+
+
+-- | @match r1 r2@ matches the rhs of @r1@ with the lhs of @l2@.
+chain :: Rule -> Rule -> Maybe Rule
+chain ru1 ru2 
+  | length (rhs ru1) /= 1 = Nothing
+  | otherwise = Just $ chain' ru1 (rename ru1 ru2)
+  where
+    chain' (Rule l1 r1 cs1) x@(Rule l2 r2 cs2) = Rule 
+      { lhs = l1
+      , rhs = map (mapTerm id k) r2
+      , con = cs1 ++ map (mapCon k) cs2 } 
+      where 
+        lhsvs = concatMap P.variables (args l2)
+        subst1 = M.fromList (map (\v -> (v, P.variable v)) (S.toList $ variables x))
+        subst2 = foldl (\m (v,p) -> M.insert v p m) subst1 (zip lhsvs (args (head r1)))
+        k = (`P.substituteVariables` subst2) 
+        mapCon f (Eq p1 p2)  = Eq (f p1) (f p2)
+        mapCon f (Gte p1 p2) = Gte (f p1) (f p2)
+  
 
 
 -- Pretty Printing ---------------------------------------------------------------------------------------------------
