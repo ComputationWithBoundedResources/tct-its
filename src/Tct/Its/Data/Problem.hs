@@ -42,6 +42,7 @@ import           Tct.Its.Data.Timebounds          (Timebounds)
 import qualified Tct.Its.Data.Timebounds          as TB
 import           Tct.Its.Data.TransitionGraph     (TGraph, estimateGraph)
 import           Tct.Its.Data.Types
+import           Tct.Its.Data.Complexity (toComplexity)
 
 
 data Its = Its
@@ -104,16 +105,23 @@ domain = concatMap P.variables . args . _startterm
 isClosed :: Its -> Bool
 isClosed = TB.allDefined . _timebounds
 
-closedProof :: (T.Processor p, T.Forking p     ~ T.Id, T.ProofObject p ~ ApplicationProof p1) 
-  => p -> T.Problem p -> T.Return (T.ProofTree (T.Problem p))   
-closedProof p prob = progress p prob NoProgress (Inapplicable "The problem is already closed. Nothing to be done.")
 
 data Progress a = Progress a | NoProgress
 
-progress :: (T.Processor p, T.Forking p ~ T.Id)
+cert :: T.Optional T.Id T.Certificate -> T.Certificate
+cert T.Null           = T.timeUBCert T.constant
+cert (T.Opt (T.Id c)) = c
+
+
+progress :: (T.Processor p, T.Forking p ~ T.Optional T.Id)
   => p -> T.Problem p -> Progress (T.Problem p) -> T.ProofObject p -> T.Return (T.ProofTree (T.Problem p))
-progress p prob (Progress prob') proof = T.resultToTree p prob $  T.Success (T.Id prob') proof (\(T.Id c) -> c)
+progress p prob (Progress prob') proof = T.resultToTree p prob $ T.Success (T.Opt $ T.Id prob') proof cert
 progress p prob NoProgress proof       = T.resultToTree p prob $ T.Fail proof
+
+closedProof :: (T.Processor p , T.Forking p ~ T.Optional a, T.Problem p ~ Its, T.ProofObject p ~ ApplicationProof p1)
+  => p -> Its -> T.Return (T.ProofTree Its)
+closedProof p prob = T.resultToTree p prob $ T.Success T.Null Closed (const $ T.timeUBCert b)
+    where b = toComplexity $ TB.totalBound (_timebounds prob)
 
 ppRules :: Rules -> TB.Timebounds -> PP.Doc
 ppRules rs tb =

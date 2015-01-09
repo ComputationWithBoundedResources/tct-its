@@ -7,7 +7,6 @@ module Tct.Its.Data.TransitionGraph
   {-, initialRules -}
   , predecessors
   , successors
-  , bridge
   , incoming
   , sccs
   , trivialSCCs
@@ -55,13 +54,6 @@ predecessors = Gr.lpre
 
 successors :: TGraph -> RuleId -> [RV']
 successors = Gr.lsuc
-
-bridge :: TGraph -> RuleId -> [RuleId] -> TGraph
-bridge gr old new = 
-  Gr.insEdges (pres ++ sucs) $ Gr.insNodes (map (\n -> (n,())) new) $ Gr.delNode old gr
-  where 
-   pres = [ (pre, n, rhsIdx) | (pre,rhsIdx) <- Gr.lpre gr old, n <- new ]
-   sucs = [ (n, suc, 0) | suc <- Gr.suc gr old, n <- new ]
 
 sccs :: TGraph -> [[RuleId]]
 sccs = Gr.scc

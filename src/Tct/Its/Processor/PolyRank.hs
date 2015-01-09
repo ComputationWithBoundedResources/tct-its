@@ -91,6 +91,9 @@ import qualified Tct.Its.Data.TransitionGraph        as TG
 poly :: PI.Shape -> T.Strategy Its
 poly shp = T.Proc polyRankProcessor{ shape = shp}
 
+-- TODO: check exact behaviou if constraints are satisfied
+-- in _T2_eric3.koat we get a strict order 1 > 1; which is wrong in the proof
+-- yet the rule is not applicable
 farkas :: T.Strategy Its
 farkas = T.Proc polyRankProcessor { useFarkas = True, shape = PI.Linear }
 
@@ -174,9 +177,9 @@ instance PP.Pretty PolyRankProof where
 instance T.Processor PolyRankProcessor where
   type ProofObject PolyRankProcessor = ApplicationProof PolyRankProof
   type Problem PolyRankProcessor     = Its
+  type Forking PolyRankProcessor     = T.Optional T.Id
 
-  solve p prob | isClosed prob 
-        = return $ closedProof p prob 
+  solve p prob | isClosed prob = return $ closedProof p prob 
   solve p prob
     | not (null $ withSizebounds p) && not (sizeIsDefined prob) 
         = return $ progress p prob NoProgress (Inapplicable "Sizebounds not initialised.")
@@ -211,7 +214,7 @@ entscheide proc prob@(Its
     solver 
       | useFarkas proc = SMT.yices
       | otherwise      = SMT.minismt' ["-m","-ib", "-1"]
-  res :: SMT.Result (M.Map Coefficient (SMT.Default Int), M.Map Strict Int) <- SMT.solveStM solver $ do 
+  res :: SMT.Result (M.Map Coefficient (Maybe Int), M.Map Strict Int) <- SMT.solveStM solver $ do 
     SMT.setFormat $ if useFarkas proc then "QF_LIA" else "QF_NIA"
     -- TODO: memoisation is here not used
     (ebsi,coefficientEncoder) <- SMT.memo $ PI.PolyInter `liftM` T.mapM encode absi
@@ -310,7 +313,7 @@ entscheide proc prob@(Its
           where interp = PI.interpretations ebsi `find` f
         interpretArg a = P.mapCoefficients SMT.num a
 
-    mkOrder :: (M.Map Coefficient (SMT.Default Int), M.Map Strict Int) -> PolyOrder 
+    mkOrder :: (M.Map Coefficient (Maybe Int), M.Map Strict Int) -> PolyOrder 
     mkOrder (inter, stricts) = PolyOrder
       { shape_  = shp
       , pint_   = PI.PolyInter pint
@@ -321,7 +324,7 @@ entscheide proc prob@(Its
       where
         strictMap = M.mapKeysMonotonic unStrict $ M.filter (>0) stricts
         (strictList, weakList) = L.partition (\(i,_) -> i `M.member` strictMap) someirules
-        pint  = M.map (P.fromViewWith (M.map SMT.runDefault inter `find`)) absi
+        pint  = M.map (P.fromViewWith (M.map (fromMaybe 666) inter `find`)) absi
         costs
           | withSize = computeBoundWithSize tgraph allrules (IM.fromList someirules) timebounds (error "sizebounds" `fromMaybe` sizebounds) costf 
           | otherwise = C.poly (inst $ startterm)

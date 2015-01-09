@@ -80,8 +80,7 @@ computeVar :: Vars -> IPoly -> [APoly] -> IO (Complexity, Growth)
 computeVar vs rpoly cpolys = fromMaybe (error "computeVar") `liftM` foldl1 liftMPlus
   [ 
   -- direct
-  return $ if not (P.isStronglyLinear rpoly) then unbounded else Nothing
-  , return $ if null cs then Just (poly rpoly, Max (abs c)) else Nothing
+  return $ if null cs then Just (poly rpoly, Max (abs c)) else Nothing
   , return $ if rpoly' `elem` pvars then Just (poly rpoly, Max 0) else Nothing
   -- indirect simple
   , solveWith []

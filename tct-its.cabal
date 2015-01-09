@@ -68,6 +68,7 @@ Library
     Tct.Its.Data.Timebounds
     Tct.Its.Data.TransitionGraph
     Tct.Its.Data.Types
+    Tct.Its.Processor
     Tct.Its.Processor.Chaining
     Tct.Its.Processor.Empty
     Tct.Its.Processor.PolyRank

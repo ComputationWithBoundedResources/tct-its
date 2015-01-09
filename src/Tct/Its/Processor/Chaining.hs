@@ -32,7 +32,7 @@ data ChainProof
 instance PP.Pretty ChainProof where
   pretty NoChainProof
     = PP.text "No rule found for the application."
-  pretty pproof = PP.hcat 
+  pretty pproof = PP.hsep 
     [ PP.text "We combine rule" 
     , PP.int (removedRule pproof) 
     , PP.text "with rules" 
@@ -42,13 +42,13 @@ instance PP.Pretty ChainProof where
 instance T.Processor ChainProcessor where
   type ProofObject ChainProcessor = ApplicationProof ChainProof
   type Problem ChainProcessor     = Its
+  type Forking ChainProcessor     = T.Optional T.Id
 
   solve p prob | isClosed prob = return $ closedProof p prob
   solve p@(ChainProcessor choice) prob = 
     case foldl (\acc r -> acc `mplus` chainOne prob r) Nothing choice of 
       Nothing -> return $ progress p prob NoProgress (Applicable NoChainProof)
       Just (nprob, pproof) -> return $ progress p prob (Progress nprob) (Applicable pproof)
-    where
 
 
 chainOne :: Its -> RuleId -> Maybe (Its, ChainProof)
@@ -63,9 +63,10 @@ chainOne prob r = do
     nextid = maximum (IM.keys irules) + 1
     nirules = zip [nextid ..] nrules
     ris = fst (unzip nirules)
+    newrules = IM.union (IM.fromList nirules) (IM.delete r irules)
     nprob = prob
-      { _irules          = IM.union (IM.fromList nirules) (IM.delete r irules)
-      , _tgraph          = TG.bridge (_tgraph prob) r ris
+      { _irules          = newrules
+      , _tgraph          = TG.estimateGraph newrules
       , _timebounds      = TB.bridge (_timebounds prob) r (zip msuccs ris)
       , _localSizebounds = Nothing
       , _rvgraph         = Nothing
@@ -84,6 +85,4 @@ chainingCandidates prob = case _rvgraph prob  of
     tbounds = _timebounds prob
     maxCost = filter (\r -> TB.tcostOf tbounds r < 5)
     maxOuts = filter (\r -> length (TG.successors (_tgraph prob) r) < 3)
-
-
 

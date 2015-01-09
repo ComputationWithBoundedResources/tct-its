@@ -15,6 +15,8 @@ module Tct.Its.Processor.Simplification
   , unsatRulesDeclaration
   
   -- * Transition Graph
+  , unsatPaths
+  , unsatPathsDeclaration
   -- ** Unreachable Rules Removal
   , unreachableRules
   , unreachableRulesDeclaration
@@ -24,6 +26,7 @@ module Tct.Its.Processor.Simplification
   ) where
 
 
+import           Control.Monad
 import           Control.Monad.Trans          (liftIO)
 import qualified Data.Graph.Inductive         as Gr
 import qualified Data.IntMap.Strict           as IM
@@ -45,6 +48,7 @@ import           Tct.Its.Data.Problem
 import qualified Tct.Its.Data.Timebounds      as TB
 import qualified Tct.Its.Data.TransitionGraph as TG
 import           Tct.Its.Data.Types
+import           Tct.Its.Data.Rule
 
 
 data PropagationProcessor
@@ -68,16 +72,16 @@ instance PP.Pretty PropagationProof where
 instance T.Processor PropagationProcessor where
   type ProofObject PropagationProcessor = ApplicationProof PropagationProof
   type Problem PropagationProcessor     = Its
+  type Forking PropagationProcessor     = T.Optional T.Id
 
-  solve p prob  
-    | isClosed prob = return $ closedProof p prob
-    | otherwise     = return $ case solve' prob of
-        Nothing                -> progress p prob NoProgress (Applicable NoPropagation)
-        Just (pproof, newprob) -> progress p prob (Progress newprob) (Applicable pproof)
-        where
-          solve' = case p of
-            TrivialSCCs          -> solveTrivialSCCs
-            KnowledgePropagation -> solveKnowledgePropagation
+  solve p prob | isClosed prob = return $ closedProof p prob
+  solve p prob = return $ case solve' prob of
+    Nothing                -> progress p prob NoProgress (Applicable NoPropagation)
+    Just (pproof, newprob) -> progress p prob (Progress newprob) (Applicable pproof)
+    where
+      solve' = case p of
+        TrivialSCCs          -> solveTrivialSCCs
+        KnowledgePropagation -> solveKnowledgePropagation
 
 
 -- trivial sccs
@@ -170,16 +174,18 @@ instance PP.Pretty RuleRemovalProof where
       UnsatRules       -> PP.text "No constraint could have been show to be unsatisfiable. No rules are removed."
       UnreachableRules -> PP.text "All transitions are reachable from the starting states. No rules are removed."
       LeafRules        -> PP.text "No leaf rules. No rules are removed."
+ 
 -- * Rechability
 
 instance T.Processor RuleRemovalProcessor where
   type ProofObject RuleRemovalProcessor = ApplicationProof RuleRemovalProof
   type Problem RuleRemovalProcessor     = Its
+  type Forking RuleRemovalProcessor     = T.Optional T.Id
 
-  solve p prob | isClosed prob       = return $ closedProof p prob
-  solve UnsatRules prob       = solveUnsatRules prob
-  solve UnreachableRules prob = return $ solveUnreachableRules prob
-  solve LeafRules prob        = return $ solveLeafRules prob
+  solve p prob | isClosed prob = return $ closedProof p prob
+  solve UnsatRules prob        = solveUnsatRules prob
+  solve UnreachableRules prob  = return $ solveUnreachableRules prob
+  solve LeafRules prob         = return $ solveLeafRules prob
 
 removeRules :: [RuleId] -> Its -> Its
 removeRules irs prob = prob 
@@ -195,29 +201,31 @@ removeRules irs prob = prob
 solveUnsatRules :: Its -> T.TctM (T.Return (T.ProofTree Its))
 solveUnsatRules prob = do
   unsats <- liftIO $ do
-      res <- F.sequence $ IM.map entscheide allrules
-      return $ IM.keys $ IM.filter isUnsat res
+    res <- F.sequence $ IM.map testUnsatRule allrules
+    return $ IM.keys $ IM.filter id res
   return $ if null unsats
     then progress p prob NoProgress (Applicable (NoRuleRemovalProof p))
     else progress p prob (Progress $ removeRules unsats prob) (Applicable (RuleRemovalProof p unsats))
   where
     p = UnsatRules
     allrules = _irules prob
-    isUnsat r = case r of
+
+testUnsatRule :: Rule -> IO Bool
+testUnsatRule r = do
+  s :: SMT.Result () <- SMT.solveStM SMT.yices $ do
+    SMT.setFormat "QF_LIA"
+    SMT.assert $ SMT.bigAnd (map encodeAtom (con r))
+    return $ SMT.decode ()
+  return (isUnsat s)
+  where
+    encodeAtom (Eq p1 p2)  = encodePoly p1 SMT..== encodePoly p2
+    encodeAtom (Gte p1 p2) = encodePoly p1 SMT..>= encodePoly p2
+    encodePoly ms     = SMT.bigAdd (map encodeMono $ P.toView' ms)
+    encodeMono (c,ps) = SMT.bigMul (SMT.num c: concatMap encodePower ps)
+    encodePower (v,e) = replicate e (SMT.ivar v)
+    isUnsat s = case s of
       SMT.Unsat -> True
       _         -> False
-    entscheide :: Rule -> IO (SMT.Result ())
-    entscheide r =
-      SMT.solveStM SMT.yices $ do
-        SMT.setFormat "QF_LIA"
-        SMT.assert $ SMT.bigAnd (map encodeAtom (con r))
-        return $ SMT.decode ()
-      where
-        encodeAtom (Eq p1 p2)  = encodePoly p1 SMT..== encodePoly p2
-        encodeAtom (Gte p1 p2) = encodePoly p1 SMT..>= encodePoly p2
-        encodePoly ms     = SMT.bigAdd (map encodeMono $ P.toView' ms)
-        encodeMono (c,ps) = SMT.bigMul (SMT.num c: concatMap encodePower ps)
-        encodePower (v,e) = replicate e (SMT.IVar SMT.tInt v)
 
 solveUnreachableRules :: Its -> T.Return (T.ProofTree Its)
 solveUnreachableRules prob =
@@ -246,6 +254,43 @@ solveLeafRules prob =
         then leafs
         else solveLeafRule (Gr.delNodes leafs' gr) (leafs' ++ leafs)
 
+-- * unsat path removal
+data PathRemovalProcessor = UnsatPaths
+  deriving Show
+
+data PathRemovalProof
+  = PathRemovalProof [(RuleId, RuleId)]
+  | NoPathRemovalProof
+  deriving Show
+
+instance PP.Pretty PathRemovalProof where
+  pretty NoPathRemovalProof    = PP.text "Nothing happend"
+  pretty (PathRemovalProof es) = PP.text "We remove following edges from the transition graph: " PP.<> PP.pretty es
+
+instance T.Processor PathRemovalProcessor where
+  type ProofObject PathRemovalProcessor = ApplicationProof PathRemovalProof
+  type Problem PathRemovalProcessor     = Its
+  type Forking PathRemovalProcessor     = T.Optional T.Id
+
+  solve p prob | isClosed prob = return $ closedProof p prob
+  solve UnsatPaths prob        = solveUnsatPaths prob
+
+solveUnsatPaths :: Its -> T.TctM (T.Return (T.ProofTree Its))
+solveUnsatPaths prob = do
+  unsats <- liftIO $ filterM solveUnsatPath (Gr.edges tgraph)
+  return $ if null unsats
+    then progress p prob NoProgress (Applicable NoPathRemovalProof)
+    else progress p prob (Progress (mkprob unsats)) (Applicable (PathRemovalProof unsats))
+  where
+    p = UnsatPaths
+    tgraph = _tgraph prob
+    irules = _irules prob
+
+    mkprob es = prob {_tgraph = Gr.delEdges es tgraph}
+    solveUnsatPath (n1,n2) = case chain (irules IM.! n1) (irules IM.! n2) of
+      Nothing -> return False
+      Just r  -> testUnsatRule r
+
 
 unsatRules :: T.Strategy Its
 unsatRules = T.Proc UnsatRules
@@ -254,12 +299,19 @@ unsatRulesDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
 unsatRulesDeclaration = T.declare "unsatRules" [desc]  () unsatRules
   where desc = "This processor removes rules with unsatisfiable constraints."
 
+unsatPaths :: T.Strategy Its
+unsatPaths = T.Proc UnsatRules
+
+unsatPathsDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
+unsatPathsDeclaration = T.declare "unsatPaths" [desc]  () unsatPaths
+  where desc = "This processor tests wether rule2 can follow rule1 for all edges in the flow graph."
+
 unreachableRules :: T.Strategy Its
 unreachableRules = T.Proc UnreachableRules
 
 unreachableRulesDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
 unreachableRulesDeclaration = T.declare "unreachableRules" [desc]  () unsatRules
-  where desc = "This processor removes rules not reachable from the starting state."
+  where desc = "This processor removes rules not reachable from the starting location."
 
 leafRules :: T.Strategy Its
 leafRules = T.Proc LeafRules

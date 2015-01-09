@@ -56,6 +56,7 @@ instance PP.Pretty LocalSizeboundsProof where
 instance T.Processor LocalSizeboundsProcessor where
   type ProofObject LocalSizeboundsProcessor = ApplicationProof LocalSizeboundsProof
   type Problem LocalSizeboundsProcessor     = Its
+  type Forking LocalSizeboundsProcessor     = T.Optional T.Id
 
   solve p prob | isClosed prob = return $ closedProof p prob
   solve p prob = do
@@ -77,6 +78,7 @@ instance PP.Pretty SizeboundsProof where
 instance T.Processor SizeboundsProcessor where
   type ProofObject SizeboundsProcessor = ApplicationProof SizeboundsProof
   type Problem SizeboundsProcessor     = Its
+  type Forking SizeboundsProcessor     = T.Optional T.Id
 
 
   solve p prob | isClosed prob = return $ closedProof p prob
