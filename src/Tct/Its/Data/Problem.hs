@@ -160,7 +160,8 @@ instance PP.Pretty Its where
 -- mode
 itsMode :: TctMode Its ()
 itsMode = TctMode
-  { modeParser          = parser
+  { modeId              = "its"
+  , modeParser          = parser
   , modeStrategies      = []
 
   , modeDefaultStrategy = failing
