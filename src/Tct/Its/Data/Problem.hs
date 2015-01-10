@@ -9,6 +9,7 @@ module Tct.Its.Data.Problem
   , isClosed
   , closedProof
   , updateTimebounds
+  , startrules
 
   , Progress (..)
   , hasProgress
@@ -49,7 +50,6 @@ data Its = Its
   { _irules          :: Rules
   , _signature       :: Signature
   , _startterm       :: Term
-  , _startrules      :: Rules
 
   , _tgraph          :: TGraph
   , _rvgraph         :: Maybe RVGraph
@@ -68,7 +68,6 @@ initialise ([fs],_, rsl) = Its
   , _signature       = mkSignature
 
   , _startterm       = Term fs (args $ lhs start)
-  , _startrules      = startRules
 
   , _tgraph          = tgraph
   , _rvgraph         = Nothing
@@ -84,6 +83,10 @@ initialise ([fs],_, rsl) = Its
     mkSignature = foldl M.union M.empty $ map k [ lhs r : rhs r | r <- rsl ]
       where k = foldl (\m t -> M.insert (fun t) (length $ args t) m) M.empty
 initialise _ = error "Problem.initialise: not implemented: multiple start symbols"
+
+startrules :: Its -> Rules
+startrules prob = IM.filter (\r -> fun (lhs r) == fs) (_irules prob)
+  where Term fs _ = _startterm prob
 
 
 validate :: [Rule] -> Bool

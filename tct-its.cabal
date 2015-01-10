@@ -63,8 +63,9 @@ Library
     Tct.Its.Data.Problem
     Tct.Its.Data.ResultVariableGraph
     Tct.Its.Data.Rule
+    Tct.Its.Data.Selector
     Tct.Its.Data.Sizebounds
-    Tct.Its.Data.Smt
+    Tct.Its.Data.SMT
     Tct.Its.Data.Timebounds
     Tct.Its.Data.TransitionGraph
     Tct.Its.Data.Types

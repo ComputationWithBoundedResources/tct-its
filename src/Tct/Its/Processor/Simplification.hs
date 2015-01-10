@@ -190,7 +190,6 @@ instance T.Processor RuleRemovalProcessor where
 removeRules :: [RuleId] -> Its -> Its
 removeRules irs prob = prob 
   { _irules          = IM.filterWithKey (\k _ -> k `notElem` irs) (_irules prob)
-  , _startrules      = IM.filterWithKey (\k _ -> k `notElem` irs) (_startrules prob)
   , _tgraph          = Gr.delNodes irs (_tgraph prob)
   -- MS: TODO filter wrt to labels
   , _rvgraph         = Nothing
@@ -236,7 +235,7 @@ solveUnreachableRules prob =
   where
     p         = UnreachableRules
     tgraph    = _tgraph prob
-    starts    = IM.keys $ _startrules prob
+    starts    = IM.keys (startrules prob)
     minus a b = S.toList $ S.fromList a `S.difference` S.fromList b
 
 solveLeafRules :: Its -> T.Return (T.ProofTree Its)

@@ -30,7 +30,7 @@ import qualified Tct.Core.Common.Pretty     as PP
 import qualified Tct.Common.Polynomial as P
 import           Tct.Common.Ring
 
-import           Tct.Its.Data.Smt ()
+import           Tct.Its.Data.SMT ()
 import           Tct.Its.Data.Complexity
 import           Tct.Its.Data.Rule
 import           Tct.Its.Data.Types

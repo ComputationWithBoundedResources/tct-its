@@ -1,6 +1,8 @@
 module Tct.Its.Processor.Chaining 
   ( chaining
   , chainingCandidates
+  , maxCost
+  , maxOuts
   ) where
 
 import Control.Monad
@@ -14,7 +16,6 @@ import           Tct.Common.ProofCombinators
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.Rule
 import qualified Tct.Its.Data.Timebounds      as TB
-import           Tct.Its.Data.ResultVariableGraph (nextSCC)
 import qualified Tct.Its.Data.TransitionGraph as TG
 import           Tct.Its.Data.Types
 
@@ -77,12 +78,12 @@ chainOne prob r = do
 chaining :: [RuleId] -> T.Strategy Its
 chaining = T.Proc . ChainProcessor
 
-chainingCandidates :: Its -> [RuleId]
-chainingCandidates prob = case _rvgraph prob  of
-  Just rvgraph -> maxOuts $ maxCost $ nextSCC rvgraph tbounds
-  _            -> []
-  where 
-    tbounds = _timebounds prob
-    maxCost = filter (\r -> TB.tcostOf tbounds r < 5)
-    maxOuts = filter (\r -> length (TG.successors (_tgraph prob) r) < 3)
+chainingCandidates :: (Its -> RuleId -> Bool) -> Its -> [RuleId] -> [RuleId]
+chainingCandidates f prob = filter (f prob) 
+
+maxCost :: Int -> Its -> RuleId -> Bool
+maxCost n prob r = TB.tcostOf (_timebounds prob) r <=  n
+
+maxOuts :: Int -> Its -> RuleId -> Bool
+maxOuts n prob r = length (TG.successors (_tgraph prob) r) <= n
 

@@ -1,7 +1,9 @@
 module Tct.Its 
   (
-  module Tct.Its.Data.Problem   
+  module M
   ) where
 
-import Tct.Its.Data.Problem
+import Tct.Its.Data.Types as M
+import Tct.Its.Data.Problem as M
+import Tct.Its.Data.Selector as M
 

@@ -100,8 +100,8 @@ farkas = T.Proc polyRankProcessor { useFarkas = True, shape = PI.Linear }
 timebounds :: [RuleId] -> T.Strategy Its
 timebounds rs = T.Proc polyRankProcessor { useFarkas = True, shape = PI.Linear, withSizebounds = rs }
 
-timeboundsCandidates :: Its -> [[RuleId]]
-timeboundsCandidates prob = tail $ L.subsequences (TB.nonDefined $ _timebounds prob)
+timeboundsCandidates :: [RuleId] -> [[RuleId]]
+timeboundsCandidates = tail . L.subsequences
 
 polyDeclaration ::T.Declaration ('[ T.Argument 'T.Required PI.Shape ] T.:-> T.Strategy Its)
 polyDeclaration = T.declare "poly" ["(non-liear) polynomial ranking function."] (T.OneTuple PI.shapeArg) poly
@@ -207,7 +207,7 @@ entscheide :: PolyRankProcessor -> Its -> IO (SMT.Result PolyOrder)
 entscheide proc prob@(Its
   { _startterm       = startterm
   , _tgraph          = tgraph
-  , _timebounds      = timebounds
+  , _timebounds      = tbounds
   , _sizebounds      = sizebounds
   }) = do
   let 
@@ -297,7 +297,7 @@ entscheide proc prob@(Its
       | withSize  = IM.assocs $ IM.filterWithKey (\k _ -> k `elem` withSizebounds proc)  allrules
       | otherwise = IM.assocs $ allrules
     (is, somerules) =  unzip someirules
-    strictrules = TB.nonDefined timebounds `L.intersect` is
+    strictrules = TB.nonDefined tbounds `L.intersect` is
     encode = P.fromViewWithM (\c -> SMT.ivarMO c) -- FIXME: incorporate restrict var for strongly linear
         {-| PI.restrict c = SMT.fm `liftM` SMT.sivarm c-}
         {-| otherwise     = SMT.fm `liftM` SMT.nvarm c-}
@@ -326,7 +326,7 @@ entscheide proc prob@(Its
         (strictList, weakList) = L.partition (\(i,_) -> i `M.member` strictMap) someirules
         pint  = M.map (P.fromViewWith (M.map (fromMaybe 666) inter `find`)) absi
         costs
-          | withSize = computeBoundWithSize tgraph allrules (IM.fromList someirules) timebounds (error "sizebounds" `fromMaybe` sizebounds) costf 
+          | withSize = computeBoundWithSize tgraph allrules (IM.fromList someirules) tbounds (error "sizebounds" `fromMaybe` sizebounds) costf 
           | otherwise = C.poly (inst $ startterm)
           where costf f = C.poly . inst $ Term f (args $ startterm)
 

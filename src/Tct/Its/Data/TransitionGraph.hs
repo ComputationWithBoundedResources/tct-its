@@ -9,6 +9,9 @@ module Tct.Its.Data.TransitionGraph
   , successors
   , incoming
   , sccs
+  , nextSCC
+  , upToNextSCC
+  , fromNextSCC
   , trivialSCCs
   ) where
 
@@ -21,6 +24,7 @@ import qualified Data.Graph.Inductive as Gr
 import qualified Tct.Core.Common.Pretty as PP
 
 import Tct.Its.Data.Types
+import qualified Tct.Its.Data.Timebounds as TB
 
 -- | Transition (or Control-Flow) graph:
 --    * Nodes correspond to indices of rules.
@@ -63,6 +67,33 @@ trivialSCCs tgraph = concat . filter acyclic  $ Gr.scc tgraph
   where 
     acyclic [scc] = scc `notElem` Gr.suc tgraph scc
     acyclic _     = False
+
+-- | Returns nextSCC with an open rule.
+nextSCC :: TGraph -> TB.Timebounds -> [RuleId]
+nextSCC tgraph tbounds = go (sccs tgraph)
+  where 
+    undefineds = TB.nonDefined tbounds
+    go [] = []
+    go (scc :ss)
+      | any (`elem` undefineds) scc = scc
+      | otherwise                   = go ss
+      --
+-- | Returns nextSCC with an open rule.
+upToNextSCC :: TGraph -> TB.Timebounds -> [[RuleId]]
+upToNextSCC tgraph tbounds = go (sccs tgraph)
+  where 
+    undefineds = TB.nonDefined tbounds
+    go [] = []
+    go (scc :ss)
+      | any (`elem` undefineds) scc = [scc]
+      | otherwise                   = scc : go ss
+
+-- | Returns all SCCs with an oppen rule.
+fromNextSCC :: TGraph -> TB.Timebounds -> [[RuleId]]
+fromNextSCC tgraph tbounds = k (sccs tgraph)
+  where 
+    undefineds = TB.nonDefined tbounds
+    k = filter (any (`elem` undefineds))
 
 instance PP.Pretty TGraph where
   pretty = PP.pretty . lines . Gr.prettify
