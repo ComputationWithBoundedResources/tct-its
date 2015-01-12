@@ -10,6 +10,7 @@ module Tct.Its.Data.Rule
   , isLinear
   , filterLinear
   , toGte
+  , celems
 
   , Rule (..)
   , Rules
@@ -64,6 +65,11 @@ filterLinear = filter isLinearA
 toGte :: Constraint -> Constraint
 toGte = concatMap toGteA
 
+celems :: Constraint -> [IPoly]
+celems = concatMap k
+  where
+    k (Eq e1 e2)  = [e1,e2]
+    k (Gte e1 e2) = [e1,e2]
 
 mapRule :: (IPoly -> IPoly) -> Rule -> Rule
 mapRule f (Rule l r cs) = Rule (mapTerm id f l) (map (mapTerm id f) r) (map k cs)
@@ -76,10 +82,7 @@ foldRule f a (Rule l r cs) = cfold $ rfold $ lfold a
   where
     lfold b = foldTerm f b l
     rfold b = foldl (foldTerm f) b r
-    cfold b = foldl f b css
-    css = concatMap k cs 
-    k (Eq e1 e2)  = [e1,e2]
-    k (Gte e1 e2) = [e1,e2]
+    cfold b = foldl f b (celems cs)
 
 -- | @rename r1 r2@ renames rule @r2@ wrt to rule @r1@.
 rename :: Rule -> Rule -> Rule

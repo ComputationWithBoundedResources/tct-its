@@ -66,7 +66,7 @@ compareComplexity (NPoly p1) (NPoly p2)
 toComplexity :: Complexity -> T.Complexity
 toComplexity Unknown = T.Unknown
 toComplexity (NPoly p)
-  | deg < 0   = T.Unknown
+  | deg < 0   = T.Poly Nothing
   | otherwise = T.Poly (Just deg)
   where deg = P.degree p
 

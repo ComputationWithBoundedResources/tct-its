@@ -13,6 +13,11 @@ module Tct.Its.Processor.Simplification
   -- * Unsat Rules Removal
   , unsatRules
   , unsatRulesDeclaration
+
+  -- * argument filter
+  , argumentFilter
+  , unusedFilter
+  , argumentFilterDeclaration
   
   -- * Transition Graph
   , unsatPaths
@@ -36,9 +41,11 @@ import qualified Data.Traversable             as F
 
 import qualified SLogic.Smt                   as SMT
 
+import qualified Tct.Core.Common.Parser       as CP
 import qualified Tct.Core.Common.Pretty       as PP
 import           Tct.Core.Common.SemiRing
 import qualified Tct.Core.Data                as T
+import qualified Tct.Core.Combinators         as T
 
 import           Tct.Common.ProofCombinators
 import qualified Tct.Common.Polynomial        as P
@@ -243,8 +250,9 @@ solveLeafRules prob =
   let leafs = solveLeafRule (_tgraph prob) [] in
   if null leafs
     then progress p prob NoProgress (Applicable (NoRuleRemovalProof p))
-    else progress p prob (Progress $ removeRules leafs prob) (Applicable (RuleRemovalProof p leafs))
+    else progress p prob (Progress $ mkproof leafs) (Applicable (RuleRemovalProof p leafs))
   where
+    mkproof leafs = let prob' = removeRules leafs prob in prob'{_timebounds = TB.addLeafCost (_timebounds prob') (length leafs)}
     p         = LeafRules
     isLeave gr n = Gr.outdeg gr n == 0
     solveLeafRule gr leafs =
@@ -291,6 +299,53 @@ solveUnsatPaths prob = do
       Just r  -> testUnsatRule r
 
 
+-- * argument filtering
+
+data ArgumentFilterProcessor = ArgumentFilter [Int] -- against the convention: lists indices to remove
+  deriving Show
+
+data ArgumentFilterProof
+  = ArgumentFilterProof [Int]
+  | NoArgumentFilterProof
+  deriving Show
+
+instance PP.Pretty ArgumentFilterProof where
+  pretty NoArgumentFilterProof    = PP.text "Nothing happend"
+  pretty (ArgumentFilterProof es) = PP.text "We remove following argument positions: " PP.<> PP.pretty es PP.<> PP.dot
+
+instance T.Processor ArgumentFilterProcessor where
+  type ProofObject ArgumentFilterProcessor = ApplicationProof ArgumentFilterProof
+  type Problem ArgumentFilterProcessor     = Its
+  type Forking ArgumentFilterProcessor     = T.Optional T.Id
+
+  solve p prob | isClosed prob = return $ closedProof p prob
+  solve p prob        = return $ solveArgumentFilter prob p
+
+solveArgumentFilter :: Its -> ArgumentFilterProcessor -> T.Return (T.ProofTree Its)
+solveArgumentFilter prob p@(ArgumentFilter as)
+  | null as   = progress p prob NoProgress (Applicable NoArgumentFilterProof)
+  | otherwise = progress p prob (Progress nprob) (Applicable (ArgumentFilterProof as))
+  where
+    nprob = prob
+      { _irules          = IM.map afOnRule (_irules prob)
+      , _startterm       = afOnTerm (_startterm prob)
+      , _rvgraph         = Nothing
+      , _sizebounds      = Nothing
+      , _localSizebounds = Nothing }
+    afOnRule (Rule l r cs) = Rule (afOnTerm l) (map afOnTerm r) cs
+    afOnTerm (Term fs ars) = Term fs (fst . unzip . filter ((`notElem` as) . snd) $ zip ars [0..])
+
+-- select positions not occuring in constraints
+unusedFilter :: Its -> [Int]
+unusedFilter prob = indices $ foldr (S.union . unusedR) S.empty allrules
+  where
+    allrules = IM.elems (_irules prob)
+    indices vs = fst . unzip . filter ((`S.member` unused) . snd) $ zip [0..] (domain prob)
+      where unused = S.fromList (domain prob) `S.difference` vs
+    unusedR r = foldr (S.union . S.fromList . P.variables) S.empty (celems $ con r)
+
+
+-- * instances
 unsatRules :: T.Strategy Its
 unsatRules = T.Proc UnsatRules
 
@@ -299,7 +354,7 @@ unsatRulesDeclaration = T.declare "unsatRules" [desc]  () unsatRules
   where desc = "This processor removes rules with unsatisfiable constraints."
 
 unsatPaths :: T.Strategy Its
-unsatPaths = T.Proc UnsatRules
+unsatPaths = T.Proc UnsatPaths
 
 unsatPathsDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
 unsatPathsDeclaration = T.declare "unsatPaths" [desc]  () unsatPaths
@@ -309,13 +364,37 @@ unreachableRules :: T.Strategy Its
 unreachableRules = T.Proc UnreachableRules
 
 unreachableRulesDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
-unreachableRulesDeclaration = T.declare "unreachableRules" [desc]  () unsatRules
+unreachableRulesDeclaration = T.declare "unreachableRules" [desc]  () unreachableRules
   where desc = "This processor removes rules not reachable from the starting location."
 
 leafRules :: T.Strategy Its
 leafRules = T.Proc LeafRules
 
 leafRulesDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
-leafRulesDeclaration = T.declare "leafRules" [desc]  () unsatRules
+leafRulesDeclaration = T.declare "leafRules" [desc]  () leafRules
   where desc = "This processor removes leafs in the transition graph."
+
+argumentFilter :: [Int] -> T.Strategy Its
+argumentFilter = T.Proc . ArgumentFilter
+
+argumentFilterDeclaration :: T.Declaration ('[T.Argument 'T.Optional Filter] T.:-> T.Strategy Its)
+argumentFilterDeclaration = T.declare "argumentFilter" [desc] (T.OneTuple $ arg) argumentFilter'
+  where
+    desc = "Removes argument positions acoording to the provided argument."
+    arg = filterArg `T.optional` Unused
+    argumentFilter' = const $ T.withProblem (argumentFilter . unusedFilter)
+
+data Filter 
+  = Unused 
+  deriving Show
+
+filterArg :: T.Argument T.Required Filter
+filterArg = T.arg { T.argName = "filter" , T.argDomain = "<filter>" }  `T.withHelp` (f1:filters)
+  where
+    f1      = "Specifies the filter to apply. <filter> is one of:"
+    filters = map ("* "++)  [ show Unused ]
+
+instance T.SParsable prob Filter where
+  parseS = CP.choice
+    [ CP.symbol (show Unused) >> return Unused ]
 

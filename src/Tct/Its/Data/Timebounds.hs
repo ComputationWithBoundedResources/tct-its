@@ -13,6 +13,7 @@ module Tct.Its.Data.Timebounds
 
   --, insert
   , inserts
+  , addLeafCost
   , bridge
   , update
   , updates
@@ -71,7 +72,6 @@ totalBound :: Timebounds -> Complexity
 totalBound Timebounds{..} = bigAdd . (toc leafcost_ :) . IM.elems $ IM.unionWith mul tbounds_ (IM.map toc tcosts_)
   where toc = poly . P.constant
 
-
 allDefined :: Timebounds -> Bool
 allDefined = not . IM.foldl' k False . tbounds_
   where k b c = b || c == unknown
@@ -87,6 +87,9 @@ defined = IM.keys . IM.filter (/= unknown) . tbounds_
 
 inserts :: Timebounds -> TimeboundsMap -> Timebounds
 inserts tb1 tb2 = tb1{tbounds_ = IM.union tb2 (tbounds_ tb1)}
+
+addLeafCost :: Timebounds -> Int -> Timebounds
+addLeafCost tb c = tb{leafcost_ = c + (leafcost_ tb)}
 
 bridge :: Timebounds -> RuleId -> [(RuleId,RuleId)] -> Timebounds
 bridge tb r rs = tb 
