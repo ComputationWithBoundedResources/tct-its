@@ -43,6 +43,7 @@ import qualified SLogic.Smt                   as SMT
 
 import qualified Tct.Core.Common.Parser       as CP
 import qualified Tct.Core.Common.Pretty       as PP
+import qualified Tct.Core.Common.Xml          as Xml
 import           Tct.Core.Common.SemiRing
 import qualified Tct.Core.Data                as T
 import qualified Tct.Core.Combinators         as T
@@ -67,14 +68,18 @@ data PropagationProof
   = PropagationProof
     { pproc_ :: PropagationProcessor
     , times_ :: TB.TimeboundsMap }
-  | NoPropagation
+  | NoPropagationProof
   deriving Show
 
 instance PP.Pretty PropagationProof where
-  pretty NoPropagation = PP.text "Nothing to propagate."
+  pretty NoPropagationProof = PP.text "Nothing to propagate."
   pretty PropagationProof{..} = case pproc_ of
     TrivialSCCs          -> PP.text "All trivial SCCs of the transition graph admit timebound 1."
     KnowledgePropagation -> PP.text "We propagate bounds from predecessors."
+
+instance Xml.Xml PropagationProof where
+  toXml NoPropagationProof = Xml.text "nopropagation"
+  toXml PropagationProof{} = Xml.text "propagation"
 
 instance T.Processor PropagationProcessor where
   type ProofObject PropagationProcessor = ApplicationProof PropagationProof
@@ -83,7 +88,7 @@ instance T.Processor PropagationProcessor where
 
   solve p prob | isClosed prob = return $ closedProof p prob
   solve p prob = return $ case solve' prob of
-    Nothing                -> progress p prob NoProgress (Applicable NoPropagation)
+    Nothing                -> progress p prob NoProgress (Applicable NoPropagationProof)
     Just (pproof, newprob) -> progress p prob (Progress newprob) (Applicable pproof)
     where
       solve' = case p of
@@ -181,6 +186,10 @@ instance PP.Pretty RuleRemovalProof where
       UnsatRules       -> PP.text "No constraint could have been show to be unsatisfiable. No rules are removed."
       UnreachableRules -> PP.text "All transitions are reachable from the starting states. No rules are removed."
       LeafRules        -> PP.text "No leaf rules. No rules are removed."
+
+instance Xml.Xml RuleRemovalProof where
+  toXml NoRuleRemovalProof{} = Xml.text "noruleremoval"
+  toXml RuleRemovalProof{}   = Xml.text "ruleremoval"
  
 -- * Rechability
 
@@ -274,6 +283,10 @@ instance PP.Pretty PathRemovalProof where
   pretty NoPathRemovalProof    = PP.text "Nothing happend"
   pretty (PathRemovalProof es) = PP.text "We remove following edges from the transition graph: " PP.<> PP.pretty es
 
+instance Xml.Xml PathRemovalProof where
+  toXml NoPathRemovalProof   = Xml.text "nopathremoval"
+  toXml (PathRemovalProof _) = Xml.text "pathremoval"
+
 instance T.Processor PathRemovalProcessor where
   type ProofObject PathRemovalProcessor = ApplicationProof PathRemovalProof
   type Problem PathRemovalProcessor     = Its
@@ -312,6 +325,11 @@ data ArgumentFilterProof
 instance PP.Pretty ArgumentFilterProof where
   pretty NoArgumentFilterProof    = PP.text "Nothing happend"
   pretty (ArgumentFilterProof es) = PP.text "We remove following argument positions: " PP.<> PP.pretty es PP.<> PP.dot
+
+instance Xml.Xml ArgumentFilterProof where
+  toXml NoArgumentFilterProof   = Xml.text "noargumentfilter"
+  toXml (ArgumentFilterProof _) = Xml.text "argumentfilter"
+
 
 instance T.Processor ArgumentFilterProcessor where
   type ProofObject ArgumentFilterProcessor = ApplicationProof ArgumentFilterProof

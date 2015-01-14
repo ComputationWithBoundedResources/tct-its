@@ -72,6 +72,7 @@ import qualified Data.Traversable                    as T (mapM)
 import qualified SLogic.Smt                          as SMT
 
 import qualified Tct.Core.Common.Pretty              as PP
+import qualified Tct.Core.Common.Xml                 as Xml
 import qualified Tct.Core.Data                       as T
 
 import           Tct.Common.ProofCombinators 
@@ -145,7 +146,6 @@ data PolyOrder = PolyOrder
 
 data PolyRankProof = PolyRankProof (OrientationProof PolyOrder) deriving Show
 
-instance PP.Pretty PolyRankProcessor where pretty = PP.text . show
 instance PP.Pretty PolyOrder where
   pretty order = PP.vcat $ 
     [ PP.text "We apply a polynomial interpretation of shape" PP.<+> PP.pretty (shape_ order) PP.<> PP.char ':'
@@ -173,6 +173,13 @@ instance PP.Pretty PolyOrder where
 
 instance PP.Pretty PolyRankProof where
   pretty (PolyRankProof o) = PP.pretty o
+
+instance Xml.Xml PolyOrder where
+  toXml _ = Xml.text "polynomial"
+
+instance Xml.Xml PolyRankProof where
+  toXml (PolyRankProof o) = Xml.toXml o
+
 
 instance T.Processor PolyRankProcessor where
   type ProofObject PolyRankProcessor = ApplicationProof PolyRankProof

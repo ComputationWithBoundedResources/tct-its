@@ -1,8 +1,9 @@
 module Tct.Its.Processor.Empty where
 
 
-import qualified Tct.Core.Data as T
 import qualified Tct.Core.Common.Pretty as PP
+import qualified Tct.Core.Common.Xml    as Xml
+import qualified Tct.Core.Data          as T
 
 import Tct.Its.Data.Complexity (toComplexity)
 import Tct.Its.Data.Problem 
@@ -26,6 +27,10 @@ data EmptyProof
 instance PP.Pretty EmptyProof where
   pretty Empty    = PP.text "Empty"
   pretty NonEmpty = PP.text "NonEmpty"
+
+instance Xml.Xml EmptyProof where
+  toXml Empty    = Xml.text "empty"
+  toXml NonEmpty = Xml.text "nonempty"
 
 instance T.Processor EmptyProcessor where
   type ProofObject EmptyProcessor = EmptyProof

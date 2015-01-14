@@ -27,12 +27,12 @@ import           Data.Maybe                       (isJust)
 import           Tct.Core.Common.Error            (TctError (..))
 import qualified Tct.Core.Common.Parser           as PR
 import qualified Tct.Core.Common.Pretty           as PP
+import qualified Tct.Core.Common.Xml              as Xml
 import qualified Tct.Core.Data                    as T
 import           Tct.Core.Main                    (TctMode (..), unit)
 import           Tct.Core.Processor.Trivial       (failing)
 
 import           Tct.Common.ProofCombinators
-import qualified Tct.Common.Answer                as A
 import qualified Tct.Common.Polynomial            as P
 
 import           Tct.Its.Data.LocalSizebounds     (LocalSizebounds)
@@ -156,7 +156,9 @@ instance PP.Pretty Its where
     --PP.<$$> pp "Sizebounds:" (PP.pretty (_sizebounds prob))
     where pp st p = PP.text st PP.<$$> PP.indent 2 p
 
-
+instance Xml.Xml Its where
+  toXml _ = Xml.text "itsInput" 
+ 
 -- mode
 itsMode :: TctMode Its ()
 itsMode = TctMode
@@ -167,7 +169,7 @@ itsMode = TctMode
   , modeDefaultStrategy = failing
   , modeOptions         = unit
   , modeModifyer        = const
-  , modeAnswer          = A.answering }
+  , modeAnswer          = const $ return () }
 
 --answering :: T.Return (T.ProofTree Its) -> T.SomeAnswer
 --answering (T.Abort _)     = T.answer A.Unknown

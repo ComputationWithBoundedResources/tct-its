@@ -10,6 +10,7 @@ import           Control.Monad.Trans              (liftIO)
 import           Data.Maybe                       (fromMaybe)
 
 import qualified Tct.Core.Common.Pretty           as PP
+import qualified Tct.Core.Common.Xml              as Xml
 import           Tct.Core (withProblem, (>>>))
 import qualified Tct.Core.Data as T
 
@@ -53,6 +54,9 @@ instance PP.Pretty LocalSizeboundsProof where
     PP.text "LocalSizebounds generated; rvgraph"
     PP.<$$> PP.indent 2 (PP.pretty vlbounds)
 
+instance Xml.Xml LocalSizeboundsProof where
+  toXml _ = Xml.text "localsizebounds"
+
 instance T.Processor LocalSizeboundsProcessor where
   type ProofObject LocalSizeboundsProcessor = ApplicationProof LocalSizeboundsProof
   type Problem LocalSizeboundsProcessor     = Its
@@ -74,6 +78,9 @@ instance PP.Pretty SizeboundsProof where
   pretty (SizeboundsProof vsbounds) = 
     PP.text "Sizebounds computed:"
     PP.<$$> PP.indent 2 (PP.pretty vsbounds)
+
+instance Xml.Xml SizeboundsProof where
+  toXml _ = Xml.text "sizebounds"
 
 instance T.Processor SizeboundsProcessor where
   type ProofObject SizeboundsProcessor = ApplicationProof SizeboundsProof

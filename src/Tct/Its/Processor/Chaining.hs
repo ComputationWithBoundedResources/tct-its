@@ -9,6 +9,7 @@ import Control.Monad
 import qualified Data.IntMap.Strict           as IM
 
 import qualified Tct.Core.Common.Pretty       as PP
+import qualified Tct.Core.Common.Xml          as Xml
 import qualified Tct.Core.Data                as T
 
 import           Tct.Common.ProofCombinators
@@ -39,6 +40,10 @@ instance PP.Pretty ChainProof where
     , PP.text "with rules" 
     , PP.pretty (addedRules pproof) 
     , PP.dot ]
+
+instance Xml.Xml ChainProof where
+  toXml NoChainProof = Xml.text "nochain"
+  toXml _            = Xml.text "chain"
 
 instance T.Processor ChainProcessor where
   type ProofObject ChainProcessor = ApplicationProof ChainProof
