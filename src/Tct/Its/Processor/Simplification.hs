@@ -78,8 +78,8 @@ instance PP.Pretty PropagationProof where
     KnowledgePropagation -> PP.text "We propagate bounds from predecessors."
 
 instance Xml.Xml PropagationProof where
-  toXml NoPropagationProof = Xml.text "nopropagation"
-  toXml PropagationProof{} = Xml.text "propagation"
+  toXml NoPropagationProof = Xml.elt "nopropagation" []
+  toXml PropagationProof{} = Xml.elt "propagation" []
 
 instance T.Processor PropagationProcessor where
   type ProofObject PropagationProcessor = ApplicationProof PropagationProof
@@ -188,8 +188,8 @@ instance PP.Pretty RuleRemovalProof where
       LeafRules        -> PP.text "No leaf rules. No rules are removed."
 
 instance Xml.Xml RuleRemovalProof where
-  toXml NoRuleRemovalProof{} = Xml.text "noruleremoval"
-  toXml RuleRemovalProof{}   = Xml.text "ruleremoval"
+  toXml NoRuleRemovalProof{} = Xml.elt "noruleremoval" []
+  toXml RuleRemovalProof{}   = Xml.elt "ruleremoval" []
  
 -- * Rechability
 
@@ -284,8 +284,8 @@ instance PP.Pretty PathRemovalProof where
   pretty (PathRemovalProof es) = PP.text "We remove following edges from the transition graph: " PP.<> PP.pretty es
 
 instance Xml.Xml PathRemovalProof where
-  toXml NoPathRemovalProof   = Xml.text "nopathremoval"
-  toXml (PathRemovalProof _) = Xml.text "pathremoval"
+  toXml NoPathRemovalProof   = Xml.elt "nopathremoval" []
+  toXml (PathRemovalProof _) = Xml.elt "pathremoval" []
 
 instance T.Processor PathRemovalProcessor where
   type ProofObject PathRemovalProcessor = ApplicationProof PathRemovalProof
@@ -327,8 +327,8 @@ instance PP.Pretty ArgumentFilterProof where
   pretty (ArgumentFilterProof es) = PP.text "We remove following argument positions: " PP.<> PP.pretty es PP.<> PP.dot
 
 instance Xml.Xml ArgumentFilterProof where
-  toXml NoArgumentFilterProof   = Xml.text "noargumentfilter"
-  toXml (ArgumentFilterProof _) = Xml.text "argumentfilter"
+  toXml NoArgumentFilterProof   = Xml.elt "noargumentfilter" []
+  toXml (ArgumentFilterProof _) = Xml.elt "argumentfilter" []
 
 
 instance T.Processor ArgumentFilterProcessor where

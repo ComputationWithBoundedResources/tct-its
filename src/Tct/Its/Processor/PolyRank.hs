@@ -175,7 +175,7 @@ instance PP.Pretty PolyRankProof where
   pretty (PolyRankProof o) = PP.pretty o
 
 instance Xml.Xml PolyOrder where
-  toXml _ = Xml.text "polynomial"
+  toXml _ = Xml.elt "polynomial" []
 
 instance Xml.Xml PolyRankProof where
   toXml (PolyRankProof o) = Xml.toXml o

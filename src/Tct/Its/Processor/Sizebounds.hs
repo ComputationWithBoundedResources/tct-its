@@ -55,7 +55,7 @@ instance PP.Pretty LocalSizeboundsProof where
     PP.<$$> PP.indent 2 (PP.pretty vlbounds)
 
 instance Xml.Xml LocalSizeboundsProof where
-  toXml _ = Xml.text "localsizebounds"
+  toXml _ = Xml.elt "localsizebounds" []
 
 instance T.Processor LocalSizeboundsProcessor where
   type ProofObject LocalSizeboundsProcessor = ApplicationProof LocalSizeboundsProof
@@ -80,7 +80,7 @@ instance PP.Pretty SizeboundsProof where
     PP.<$$> PP.indent 2 (PP.pretty vsbounds)
 
 instance Xml.Xml SizeboundsProof where
-  toXml _ = Xml.text "sizebounds"
+  toXml _ = Xml.elt "sizebounds" []
 
 instance T.Processor SizeboundsProcessor where
   type ProofObject SizeboundsProcessor = ApplicationProof SizeboundsProof

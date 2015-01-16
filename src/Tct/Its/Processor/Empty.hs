@@ -29,8 +29,8 @@ instance PP.Pretty EmptyProof where
   pretty NonEmpty = PP.text "NonEmpty"
 
 instance Xml.Xml EmptyProof where
-  toXml Empty    = Xml.text "empty"
-  toXml NonEmpty = Xml.text "nonempty"
+  toXml Empty    = Xml.elt "empty" []
+  toXml NonEmpty = Xml.elt "nonempty" []
 
 instance T.Processor EmptyProcessor where
   type ProofObject EmptyProcessor = EmptyProof

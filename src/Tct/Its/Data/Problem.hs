@@ -157,7 +157,7 @@ instance PP.Pretty Its where
     where pp st p = PP.text st PP.<$$> PP.indent 2 p
 
 instance Xml.Xml Its where
-  toXml _ = Xml.text "itsInput" 
+  toXml _ = Xml.elt "itsInput" []
  
 -- mode
 itsMode :: TctMode Its ()

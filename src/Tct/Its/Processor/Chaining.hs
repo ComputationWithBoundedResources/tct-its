@@ -42,8 +42,8 @@ instance PP.Pretty ChainProof where
     , PP.dot ]
 
 instance Xml.Xml ChainProof where
-  toXml NoChainProof = Xml.text "nochain"
-  toXml _            = Xml.text "chain"
+  toXml NoChainProof = Xml.elt "nochain" []
+  toXml _            = Xml.elt "chain" []
 
 instance T.Processor ChainProcessor where
   type ProofObject ChainProcessor = ApplicationProof ChainProof
