@@ -235,7 +235,7 @@ testUnsatRule r = do
   where
     encodeAtom (Eq p1 p2)  = encodePoly p1 SMT..== encodePoly p2
     encodeAtom (Gte p1 p2) = encodePoly p1 SMT..>= encodePoly p2
-    encodePoly ms     = SMT.bigAdd (map encodeMono $ P.toView' ms)
+    encodePoly ms     = SMT.bigAdd (map encodeMono $ P.toView ms)
     encodeMono (c,ps) = SMT.bigMul (SMT.num c: concatMap encodePower ps)
     encodePower (v,e) = replicate e (SMT.ivar v)
     isUnsat s = case s of

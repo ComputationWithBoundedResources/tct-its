@@ -98,10 +98,10 @@ computeVar vs rpoly cpolys = fromMaybe (error "computeVar") `liftM` foldl1 liftM
     commonvs  = vs `intersect` P.variables rpoly
 
     solveWith ls = entscheide (P.linear k ls) rpoly cpolys
-      where k m = if m == one then SomeCoefficient else RestrictCoefficient
+      where k m = if P.mfromView m == one then SomeCoefficient else RestrictCoefficient
     solveWith' [] = return Nothing
     solveWith' ls = entscheide (P.linear k ls) rpoly cpolys
-      where k m = if m == one then IntCoefficient 0 else RestrictCoefficient
+      where k m = if P.mfromView m == one then IntCoefficient 0 else RestrictCoefficient
     liftMPlus m1 m2 = m1 >>= \m1' -> maybe m2 (return . Just) m1'
 
 

@@ -198,9 +198,9 @@ instance T.Processor PolyRankProcessor where
             if hasProgress prob (times_ order)
               then (Progress $ updateTimebounds prob (times_ order), Applicable (PolyRankProof (Order order)))
               else (NoProgress, Applicable (PolyRankProof Incompatible))
+          -- MS: should return fail; then it is captured by ErroneousProc
           SMT.Error s   -> (NoProgress, (Inapplicable s))
           _             -> (NoProgress, (Applicable (PolyRankProof Incompatible)))
-
 
 
 newtype Strict = Strict { unStrict :: Int }
@@ -278,7 +278,7 @@ entscheide proc prob@(Its
       undefinedVars = computeUndefinedVars tgraph allrules (IM.fromList someirules) (error "undefvars" `fromMaybe` sizebounds)
       undefinedCofs (Rule l _ _) = [ c | (c,ms) <- pl, (v,_) <- ms, isUndefined (fun l) v ]
         where
-          pl = P.toView' (interpretLhs l)
+          pl = P.toView (interpretLhs l)
           isUndefined f v = case M.lookup f undefinedVars of
             Nothing -> False
             Just vs -> v `elem` vs
@@ -316,7 +316,7 @@ entscheide proc prob@(Its
 
     interpret ebsi = interpretTerm interpretFun interpretArg
       where
-        interpretFun f = P.substituteVariables interp . M.fromList . zip [PI.SomeIndeterminate 0..]
+        interpretFun f = P.substituteVariables interp . M.fromList . zip PI.indeterminates
           where interp = PI.interpretations ebsi `find` f
         interpretArg a = P.mapCoefficients SMT.num a
 
@@ -340,7 +340,7 @@ entscheide proc prob@(Its
         times = M.map (const costs) strictMap
 
         inst = interpretTerm interpretFun interpretArg
-        interpretFun f = P.substituteVariables (pint `find` f) . M.fromList . zip [PI.SomeIndeterminate 0..]
+        interpretFun f = P.substituteVariables (pint `find` f) . M.fromList . zip PI.indeterminates
         interpretArg a = a
 
 computeUndefinedVars :: TG.TGraph -> Rules -> Rules -> SB.Sizebounds -> M.Map Fun [Var]
