@@ -220,7 +220,7 @@ entscheide proc prob@(Its
   let 
     solver 
       | useFarkas proc = SMT.yices
-      | otherwise      = SMT.minismt' ["-m","-ib", "-1"]
+      | otherwise      = SMT.minismt' (SMT.defaultOptions ["-m","-ib", "-1"])
   res :: SMT.Result (M.Map Coefficient (Maybe Int), M.Map Strict Int) <- SMT.solveStM solver $ do 
     SMT.setFormat $ if useFarkas proc then "QF_LIA" else "QF_NIA"
     -- TODO: memoisation is here not used
