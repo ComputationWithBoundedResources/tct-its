@@ -39,8 +39,6 @@ import qualified Data.Map.Strict              as M
 import qualified Data.Set                     as S
 import qualified Data.Traversable             as F
 
-import qualified SLogic.Smt                   as SMT
-
 import qualified Tct.Core.Common.Parser       as CP
 import qualified Tct.Core.Common.Pretty       as PP
 import qualified Tct.Core.Common.Xml          as Xml
@@ -50,6 +48,7 @@ import qualified Tct.Core.Combinators         as T
 
 import           Tct.Common.ProofCombinators
 import qualified Tct.Common.Polynomial        as P
+import qualified Tct.Common.SMT as SMT
 
 import           Tct.Its.Data.Complexity
 import           Tct.Its.Data.Problem

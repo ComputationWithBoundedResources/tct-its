@@ -69,8 +69,6 @@ import qualified Data.IntMap.Strict                     as IM
 import qualified Data.Set as S 
 import qualified Data.Traversable                    as T (mapM)
 
-import qualified SLogic.Smt                          as SMT
-
 import qualified Tct.Core.Common.Pretty              as PP
 import qualified Tct.Core.Common.Xml                 as Xml
 import qualified Tct.Core.Data                       as T
@@ -79,6 +77,7 @@ import           Tct.Common.ProofCombinators
 import qualified Tct.Common.Polynomial               as P
 import qualified Tct.Common.PolynomialInterpretation as PI
 import           Tct.Common.Ring
+import qualified Tct.Common.SMT as SMT
 
 import qualified Tct.Its.Data.Complexity             as C
 import           Tct.Its.Data.Problem

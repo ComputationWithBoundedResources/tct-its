@@ -65,7 +65,6 @@ Library
     Tct.Its.Data.Rule
     Tct.Its.Data.Selector
     Tct.Its.Data.Sizebounds
-    Tct.Its.Data.SMT
     Tct.Its.Data.Timebounds
     Tct.Its.Data.TransitionGraph
     Tct.Its.Data.Types

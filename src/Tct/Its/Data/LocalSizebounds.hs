@@ -24,13 +24,11 @@ import qualified Data.IntMap.Strict       as IM
 import qualified Data.Map.Strict       as M
 import Data.List (intersect)
 
-import qualified SLogic.Smt as SMT
-
 import qualified Tct.Core.Common.Pretty     as PP
 import qualified Tct.Common.Polynomial as P
 import           Tct.Common.Ring
+import qualified Tct.Common.SMT as SMT
 
-import           Tct.Its.Data.SMT ()
 import           Tct.Its.Data.Complexity
 import           Tct.Its.Data.Rule
 import           Tct.Its.Data.Types
