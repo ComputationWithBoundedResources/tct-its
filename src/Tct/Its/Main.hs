@@ -8,5 +8,5 @@ import Tct.Its.Processor (defaultSDs)
 
 
 main :: IO ()
-main = apply defaultTctConfig $ itsMode `withStrategies` defaultSDs
+main = setMode $ itsMode `withStrategies` defaultSDs
 
