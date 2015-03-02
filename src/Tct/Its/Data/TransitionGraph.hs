@@ -1,6 +1,6 @@
 module Tct.Its.Data.TransitionGraph 
   (
-  TGraph
+  TGraph, TPath
   -- * Construction
   , estimateGraph 
   -- * Queries
@@ -8,11 +8,17 @@ module Tct.Its.Data.TransitionGraph
   , predecessors
   , successors
   , incoming
+  , roots
+  , rootsPaths
+  , rootsMaxPaths
   , sccs
   , nextSCC
   , upToNextSCC
   , fromNextSCC
   , trivialSCCs
+  -- * Update
+  , deleteNodes
+  , restrictToNodes
   ) where
 
 
@@ -31,7 +37,7 @@ import qualified Tct.Its.Data.Timebounds as TB
 --    * There is an edge between two nodes if there exists an evaluation st the latter rule follows the former rule.
 --    * Edges are labelled with the corresponding position of the compound symbol.
 type TGraph  = Gr.Gr () ComId
-
+type TPath  = [RuleId]
 
 
 -- | Default estimation. See 'functionSymbols'.
@@ -59,6 +65,19 @@ predecessors = Gr.lpre
 successors :: TGraph -> RuleId -> [RV']
 successors = Gr.lsuc
 
+roots :: TGraph -> [RuleId]
+roots gr = [ n | n <- Gr.nodes gr, Gr.indeg gr n == 0 ]
+
+rootsPaths :: TGraph -> [TPath]
+rootsPaths gr = concatMap (`Gr.bft` gr) (roots gr)
+
+rootsMaxPaths :: TGraph -> [TPath]
+rootsMaxPaths gr = filter (\p -> any (S.fromList p `S.isProperSubsetOf`) pathsS) paths
+  where
+    paths  = rootsPaths gr
+    pathsS = map S.fromList paths
+
+
 sccs :: TGraph -> [[RuleId]]
 sccs = Gr.scc
 
@@ -77,7 +96,7 @@ nextSCC tgraph tbounds = go (sccs tgraph)
     go (scc :ss)
       | any (`elem` undefineds) scc = scc
       | otherwise                   = go ss
-      --
+
 -- | Returns nextSCC with an open rule.
 upToNextSCC :: TGraph -> TB.Timebounds -> [[RuleId]]
 upToNextSCC tgraph tbounds = go (sccs tgraph)
@@ -103,4 +122,11 @@ incoming tgraph somerules = S.toList $ S.filter ((`S.notMember` ous) . fst) ins
   where 
     ins = S.unions $ map (S.fromList . Gr.lpre tgraph) somerules
     ous = S.fromList somerules
+
+deleteNodes :: [RuleId] -> TGraph -> TGraph
+deleteNodes = Gr.delNodes
+
+restrictToNodes :: [RuleId] -> TGraph -> TGraph
+restrictToNodes rs gr = deleteNodes invrs gr
+  where invrs = S.toList $ S.fromList (Gr.nodes gr) `S.difference` S.fromList rs
 

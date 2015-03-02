@@ -71,6 +71,7 @@ Library
     Tct.Its.Processor
     Tct.Its.Processor.Chaining
     Tct.Its.Processor.Empty
+    Tct.Its.Processor.PathAnalysis
     Tct.Its.Processor.PolyRank
     Tct.Its.Processor.Simplification
     Tct.Its.Processor.Sizebounds

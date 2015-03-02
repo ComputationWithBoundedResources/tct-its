@@ -202,16 +202,6 @@ instance T.Processor RuleRemovalProcessor where
   solve UnreachableRules prob  = return $ solveUnreachableRules prob
   solve LeafRules prob         = return $ solveLeafRules prob
 
-removeRules :: [RuleId] -> Its -> Its
-removeRules irs prob = prob 
-  { _irules          = IM.filterWithKey (\k _ -> k `notElem` irs) (_irules prob)
-  , _tgraph          = Gr.delNodes irs (_tgraph prob)
-  -- MS: TODO filter wrt to labels
-  , _rvgraph         = Nothing
-  , _timebounds      = TB.filterRules (`notElem` irs) (_timebounds prob)
-  , _sizebounds      = M.filterWithKey (\rv _ -> rvRule rv `notElem` irs) `fmap` _sizebounds prob
-  , _localSizebounds = M.filterWithKey (\rv _ -> rvRule rv `notElem` irs) `fmap` _localSizebounds prob }
-
 solveUnsatRules :: Its -> T.TctM (T.Return (T.ProofTree Its))
 solveUnsatRules prob = do
   unsats <- liftIO $ do

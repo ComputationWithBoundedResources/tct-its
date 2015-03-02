@@ -1,6 +1,9 @@
 module Tct.Its.Data.Problem
   ( Its (..)
 
+  , removeRules
+  , restrictRules
+
   , validate
 
   --, rvss
@@ -41,7 +44,8 @@ import           Tct.Its.Data.Rule
 import           Tct.Its.Data.Sizebounds          (Sizebounds)
 import           Tct.Its.Data.Timebounds          (Timebounds)
 import qualified Tct.Its.Data.Timebounds          as TB
-import           Tct.Its.Data.TransitionGraph     (TGraph, estimateGraph)
+import           Tct.Its.Data.TransitionGraph     (TGraph)
+import qualified Tct.Its.Data.TransitionGraph     as TG
 import           Tct.Its.Data.Types
 import           Tct.Its.Data.Complexity (toComplexity)
 
@@ -79,7 +83,7 @@ initialise ([fs],_, rsl) = Its
     allRules   = IM.fromList $ zip [0..] rsl
     startRules = IM.filter (\r -> fun (lhs r) == fs) allRules
     start      = snd $ IM.findMin startRules
-    tgraph = estimateGraph allRules
+    tgraph = TG.estimateGraph allRules
     mkSignature = foldl M.union M.empty $ map k [ lhs r : rhs r | r <- rsl ]
       where k = foldl (\m t -> M.insert (fun t) (length $ args t) m) M.empty
 initialise _ = error "Problem.initialise: not implemented: multiple start symbols"
@@ -95,6 +99,26 @@ validate = all validRule
     validRule ru = case rhs ru of
       [r] -> all P.isLinear (args r)
       _   -> False
+
+removeRules :: [RuleId] -> Its -> Its
+removeRules irs prob = prob 
+  { _irules          = IM.filterWithKey (\k _ -> k `notElem` irs) (_irules prob)
+  , _tgraph          = TG.deleteNodes irs (_tgraph prob)
+  -- MS: TODO filter wrt to labels
+  , _rvgraph         = Nothing
+  , _timebounds      = TB.filterRules (`notElem` irs) (_timebounds prob)
+  , _sizebounds      = M.filterWithKey (\rv _ -> rvRule rv `notElem` irs) `fmap` _sizebounds prob
+  , _localSizebounds = M.filterWithKey (\rv _ -> rvRule rv `notElem` irs) `fmap` _localSizebounds prob }
+
+restrictRules :: [RuleId] -> Its -> Its
+restrictRules irs prob = undefined
+  { _irules          = IM.filterWithKey (\k _ -> k `elem` irs) (_irules prob)
+  , _tgraph          = TG.restrictToNodes irs (_tgraph prob)
+  -- MS: TODO restrict to labels
+  , _rvgraph         = Nothing
+  , _timebounds      = TB.filterRules (`elem` irs) (_timebounds prob)
+  , _sizebounds      = M.filterWithKey (\rv _ -> rvRule rv `elem` irs) `fmap` _sizebounds prob
+  , _localSizebounds = M.filterWithKey (\rv _ -> rvRule rv `elem` irs) `fmap` _localSizebounds prob }
 
 {-rvss :: Vars -> Rules -> [RV]-}
 {-rvss vs = concatMap k-}
