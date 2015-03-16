@@ -47,12 +47,17 @@ initialiseSizebounds prob = case _localSizebounds prob of
 
 
 data LocalSizeboundsProcessor = LocalSizeboundsProc deriving Show
-data LocalSizeboundsProof     = LocalSizeboundsProof (Vars, LocalSizebounds) RVGraph deriving Show
+
+data LocalSizeboundsProof
+  = LocalSizeboundsProof (Vars, LocalSizebounds) RVGraph
+  | LocalSizeboundsFail
+  deriving Show
 
 instance PP.Pretty LocalSizeboundsProof where
-  pretty (LocalSizeboundsProof vlbounds _) = 
+  pretty (LocalSizeboundsProof vlbounds _) =
     PP.text "LocalSizebounds generated; rvgraph"
     PP.<$$> PP.indent 2 (PP.pretty vlbounds)
+  pretty LocalSizeboundsFail = PP.text "LocalSizebounds: no progress."
 
 instance Xml.Xml LocalSizeboundsProof where
   toXml _ = Xml.elt "localsizebounds" []
@@ -66,18 +71,23 @@ instance T.Processor LocalSizeboundsProcessor where
   solve p prob = do
     nprob <- liftIO $ initialiseSizebounds prob
     let pproof = LocalSizeboundsProof (domain prob, error "proc sizeb" `fromMaybe` _localSizebounds nprob) (error "proc rv" `fromMaybe` _rvgraph nprob)
-    return $ progress p prob (Progress nprob) (Applicable pproof)
-
+    return $ if _localSizebounds prob /= _localSizebounds nprob
+      then progress p prob (Progress nprob) (Applicable pproof)
+      else progress p prob NoProgress (Applicable LocalSizeboundsFail)
 
 
 data SizeboundsProcessor = SizeboundsProc deriving Show
 
-data SizeboundsProof = SizeboundsProof (Vars, Sizebounds) deriving Show
+data SizeboundsProof
+  = SizeboundsProof (Vars, Sizebounds)
+  | SizeboundsFail
+  deriving Show
 
 instance PP.Pretty SizeboundsProof where
-  pretty (SizeboundsProof vsbounds) = 
+  pretty (SizeboundsProof vsbounds) =
     PP.text "Sizebounds computed:"
     PP.<$$> PP.indent 2 (PP.pretty vsbounds)
+  pretty SizeboundsFail = PP.text "Sizebounds: no progress."
 
 instance Xml.Xml SizeboundsProof where
   toXml _ = Xml.elt "sizebounds" []
@@ -90,25 +100,25 @@ instance T.Processor SizeboundsProcessor where
 
   solve p prob | isClosed prob = return $ closedProof p prob
   solve p prob = return $
-    if _sizebounds prob /= _sizebounds nprob 
+    if _sizebounds prob /= _sizebounds nprob
       then progress p prob (Progress nprob) (Applicable pproof)
-      else progress p prob NoProgress (Applicable pproof)
-    where 
+      else progress p prob NoProgress (Applicable SizeboundsFail)
+    where
       nprob = updateSizebounds prob
       pproof = SizeboundsProof (domain prob, error "sizebound" `fromMaybe` _sizebounds nprob)
 
 updateSizebounds :: Its -> Its
 updateSizebounds prob = prob {_sizebounds = Just sbounds'} where
-  sbounds' = SB.updateSizebounds 
-    (_tgraph prob) 
-    (error "update rvgraph" `fromMaybe` _rvgraph prob) 
-    (_timebounds prob) 
-    (error "update sizebounds" `fromMaybe` _sizebounds prob)  
+  sbounds' = SB.updateSizebounds
+    (_tgraph prob)
+    (error "update rvgraph" `fromMaybe` _rvgraph prob)
+    (_timebounds prob)
+    (error "update sizebounds" `fromMaybe` _sizebounds prob)
     (error "update localsizebounds" `fromMaybe` _localSizebounds prob)
 
 -- | Updates sizebounds.
 sizebounds :: T.Strategy Its
-sizebounds = withProblem $ 
+sizebounds = withProblem $
   \prob -> if sizeIsDefined prob then sb else localSizebound >>> sb
   where sb = T.Proc SizeboundsProc
 

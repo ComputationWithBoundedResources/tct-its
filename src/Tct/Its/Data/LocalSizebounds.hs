@@ -23,6 +23,8 @@ import           Data.Maybe (fromMaybe)
 import qualified Data.IntMap.Strict       as IM
 import qualified Data.Map.Strict       as M
 import Data.List (intersect)
+import qualified Data.Set as S
+import qualified Data.List as L (partition)
 
 import qualified Tct.Core.Common.Pretty     as PP
 import qualified Tct.Common.Polynomial as P
@@ -32,11 +34,6 @@ import qualified Tct.Common.SMT as SMT
 import           Tct.Its.Data.Complexity
 import           Tct.Its.Data.Rule
 import           Tct.Its.Data.Types
-
-
-{-instance PP.Pretty SMT.Expr where-}
-  {-pretty = PP.text . SMT.prettyExpr-}
-
 
 
 type LocalSizebounds = M.Map RV (Complexity, Growth)
@@ -82,9 +79,10 @@ computeVar vs rpoly cpolys = fromMaybe (error "computeVar") `liftM` foldl1 liftM
   , return $ if rpoly' `elem` pvars then Just (poly rpoly, Max 0) else Nothing
   -- indirect simple
   , solveWith []
-  , solveWith' commonvs
-  , solveWith commonvs
+  , solveWith' dependentvs
+  , solveWith dependentvs
   -- indirect
+  , solveWith' vs
   , solveWith vs
   -- last resort
   , return  unbounded ]
@@ -93,13 +91,21 @@ computeVar vs rpoly cpolys = fromMaybe (error "computeVar") `liftM` foldl1 liftM
     pvars     = map P.variable vs
     rpoly'    = P.mapCoefficients abs rpoly
     unbounded = Just (Unknown, Unbounded)
-    commonvs  = vs `intersect` P.variables rpoly
-
+    dependentvs = vs `intersect` S.toList (deps rvs rvs (map P.variables cpolys))
+      where 
+        rvs = S.fromList (P.variables rpoly)
+        deps new old vss
+          | S.null new || null vss = old
+          | otherwise = deps (new' `S.difference` old) (old `S.union` new') vss2
+          where 
+            (vss1,vss2) = L.partition (any (`S.member` old)) vss
+            new' = S.unions $ map S.fromList vss1
     solveWith ls = entscheide (P.linear k ls) rpoly cpolys
+
       where k m = if P.mfromView m == one then SomeCoefficient else RestrictCoefficient
     solveWith' [] = return Nothing
     solveWith' ls = entscheide (P.linear k ls) rpoly cpolys
-      where k m = if P.mfromView m == one then IntCoefficient 0 else RestrictCoefficient
+      where k m = if P.mfromView m == one then IntCoefficient 0 else RestrictCoefficient -- set contant to zero
     liftMPlus m1 m2 = m1 >>= \m1' -> maybe m2 (return . Just) m1'
 
 

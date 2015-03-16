@@ -7,15 +7,19 @@ import qualified Tct.Core.Data                as T
 
 import           Tct.Common.ProofCombinators
 
+import           Tct.Its.Data.Types
 import           Tct.Its.Data.Problem
 import qualified Tct.Its.Data.TransitionGraph as TG
 
 
+-- TODO: MS:
+-- add a choice to label function symbols with the scc id
+-- the idea is to identify different locations (possibly having the same function symbols)
 data PathAnalysis = PathAnalysis
   deriving Show
 
 data PathAnalysisProof
-  = PathAnalysisProof { paths_ :: [TG.TPath] }
+  = PathAnalysisProof { paths_ :: [[SCC RuleId]] }
   | NoPathAnalysisProof
   deriving Show
 
@@ -44,9 +48,9 @@ solvePathAnalysis prob
   | null (drop 1 paths) = Nothing
   | otherwise           = Just (pproof, newprob)
   where
-    paths   = TG.rootsMaxPaths (_tgraph prob)
+    paths   = TG.rootsPaths (_tgraph prob)
     pproof  = PathAnalysisProof { paths_ = paths }
-    newprob = map (`restrictRules` prob) paths
+    newprob = map ((`restrictRules` prob) . concatMap theSCC) paths
 
 pathAnalysis :: T.Strategy Its
 pathAnalysis = T.Proc PathAnalysis

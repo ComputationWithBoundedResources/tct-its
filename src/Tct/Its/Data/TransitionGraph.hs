@@ -1,16 +1,14 @@
-module Tct.Its.Data.TransitionGraph 
+module Tct.Its.Data.TransitionGraph
   (
-  TGraph, TPath
+  TGraph, CGraph
   -- * Construction
-  , estimateGraph 
+  , estimateGraph
   -- * Queries
   {-, initialRules -}
   , predecessors
   , successors
   , incoming
-  , roots
   , rootsPaths
-  , rootsMaxPaths
   , sccs
   , nextSCC
   , upToNextSCC
@@ -22,22 +20,27 @@ module Tct.Its.Data.TransitionGraph
   ) where
 
 
-import Control.Monad (void)
-import qualified Data.Set as S
-import qualified Data.IntMap as IM
-import qualified Data.Graph.Inductive as Gr
+import           Control.Monad           (void)
+import qualified Data.Graph.Inductive    as Gr
+import qualified Data.IntMap             as IM
+import qualified Data.List               as L (nub)
+import qualified Data.Set                as S
 
-import qualified Tct.Core.Common.Pretty as PP
+import qualified Tct.Core.Common.Pretty  as PP
 
-import Tct.Its.Data.Types
 import qualified Tct.Its.Data.Timebounds as TB
+import           Tct.Its.Data.Types
 
+
+type Graph nl el = Gr.Gr nl el
+type NodeId      = Gr.Node
 -- | Transition (or Control-Flow) graph:
 --    * Nodes correspond to indices of rules.
 --    * There is an edge between two nodes if there exists an evaluation st the latter rule follows the former rule.
 --    * Edges are labelled with the corresponding position of the compound symbol.
-type TGraph  = Gr.Gr () ComId
-type TPath  = [RuleId]
+type TGraph = Gr.Gr () ComId
+type CGraph = Gr.Gr (SCC RuleId) (RuleId,ComId)
+
 
 
 -- | Default estimation. See 'functionSymbols'.
@@ -45,9 +48,9 @@ estimateGraph :: Rules -> TGraph
 estimateGraph = estimateGraphWith functionSymbols
 
 estimateGraphWith :: (Rule -> Rule -> [Int])  -> Rules -> TGraph
-estimateGraphWith f rules = Gr.mkGraph ns es
-  where 
-    irs = IM.toList rules
+estimateGraphWith f rs = Gr.mkGraph ns es
+  where
+    irs = IM.toList rs
     ns  = map void irs
     es  = [ (n1, n2, cid) | (n1,r1) <- irs, (n2,r2) <- irs, cid <- f r1 r2 ]
 
@@ -65,32 +68,51 @@ predecessors = Gr.lpre
 successors :: TGraph -> RuleId -> [RV']
 successors = Gr.lsuc
 
-roots :: TGraph -> [RuleId]
+roots :: Graph nl el -> [NodeId]
 roots gr = [ n | n <- Gr.nodes gr, Gr.indeg gr n == 0 ]
 
-rootsPaths :: TGraph -> [TPath]
-rootsPaths gr = concatMap (`Gr.bft` gr) (roots gr)
-
-rootsMaxPaths :: TGraph -> [TPath]
-rootsMaxPaths gr = filter (\p -> any (S.fromList p `S.isProperSubsetOf`) pathsS) paths
+rootsPaths :: TGraph -> [[SCC RuleId]]
+rootsPaths gr = [ map scc p | p <- paths, not $ any (S.fromList p `S.isProperSubsetOf`) pathsS ]
   where
-    paths  = rootsPaths gr
+    cgr = toCongruenceGraph gr
+
+    paths  = L.nub $ concatMap (walk []) (roots cgr)
     pathsS = map S.fromList paths
 
+    walk path n
+      | null sucs = [reverse path']
+      | otherwise = concatMap (walk path') sucs
+      where
+        sucs  = Gr.suc cgr n
+        path' = n:path
+    scc = Gr.lab' . Gr.context cgr
+
+
+
+toCongruenceGraph :: TGraph -> CGraph
+toCongruenceGraph gr = Gr.mkGraph ns es
+  where
+    ns    = zip [1..] [sccNode scc | scc <- sccs gr]
+    sccNode [n] | n `notElem` Gr.suc gr n = Trivial n
+    sccNode nx  = NonTrivial nx
+
+    es = [ (n1, n2, i) | (n1, cn1) <- ns, (n2, cn2) <- ns,  n1 /= n2, i <- cn1 `edgesTo` cn2 ]
+    cn1 `edgesTo` cn2 =
+      [ (n,i) | n1 <- theSCC cn1, (n,i) <- Gr.lsuc gr n1, n `elem` theSCC cn2]
 
 sccs :: TGraph -> [[RuleId]]
 sccs = Gr.scc
 
 trivialSCCs :: TGraph -> [RuleId]
 trivialSCCs tgraph = concat . filter acyclic  $ Gr.scc tgraph
-  where 
+  where
     acyclic [scc] = scc `notElem` Gr.suc tgraph scc
     acyclic _     = False
 
 -- | Returns nextSCC with an open rule.
 nextSCC :: TGraph -> TB.Timebounds -> [RuleId]
 nextSCC tgraph tbounds = go (sccs tgraph)
-  where 
+  where
     undefineds = TB.nonDefined tbounds
     go [] = []
     go (scc :ss)
@@ -100,7 +122,7 @@ nextSCC tgraph tbounds = go (sccs tgraph)
 -- | Returns nextSCC with an open rule.
 upToNextSCC :: TGraph -> TB.Timebounds -> [[RuleId]]
 upToNextSCC tgraph tbounds = go (sccs tgraph)
-  where 
+  where
     undefineds = TB.nonDefined tbounds
     go [] = []
     go (scc :ss)
@@ -110,7 +132,7 @@ upToNextSCC tgraph tbounds = go (sccs tgraph)
 -- | Returns all SCCs with an oppen rule.
 fromNextSCC :: TGraph -> TB.Timebounds -> [[RuleId]]
 fromNextSCC tgraph tbounds = k (sccs tgraph)
-  where 
+  where
     undefineds = TB.nonDefined tbounds
     k = filter (any (`elem` undefineds))
 
@@ -119,7 +141,7 @@ instance PP.Pretty TGraph where
 
 incoming :: TGraph -> [RuleId] -> [RV']
 incoming tgraph somerules = S.toList $ S.filter ((`S.notMember` ous) . fst) ins
-  where 
+  where
     ins = S.unions $ map (S.fromList . Gr.lpre tgraph) somerules
     ous = S.fromList somerules
 

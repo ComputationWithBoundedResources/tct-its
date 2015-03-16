@@ -52,12 +52,6 @@ incoming rvgraph rvs = preds L.\\ rvs
     preds = map (fromJust' "RV incoming.label" . Gr.lab rvgraph) predids
 
 
-data SCC a = Trivial a | NonTrivial [a]
-
-instance Functor SCC where
-  f `fmap` Trivial a     = Trivial (f a)
-  f `fmap` NonTrivial as = NonTrivial (map f as)
-
 -- TODO: check if in topological order
 sccs :: RVGraph -> [SCC RV]
 sccs rvgraph = map (fmap (fromJust' "RV scc.label" . Gr.lab rvgraph) . isTrivial) (Gr.scc rvgraph)

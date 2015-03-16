@@ -28,6 +28,9 @@ module Tct.Its.Processor.Simplification
   -- ** Leaf Rules Removal
   , leafRules
   , leafRulesDeclaration
+
+  -- * 
+  , testUnsatRule
   ) where
 
 
@@ -35,7 +38,6 @@ import           Control.Monad
 import           Control.Monad.Trans          (liftIO)
 import qualified Data.Graph.Inductive         as Gr
 import qualified Data.IntMap.Strict           as IM
-import qualified Data.Map.Strict              as M
 import qualified Data.Set                     as S
 import qualified Data.Traversable             as F
 
@@ -205,14 +207,15 @@ instance T.Processor RuleRemovalProcessor where
 solveUnsatRules :: Its -> T.TctM (T.Return (T.ProofTree Its))
 solveUnsatRules prob = do
   unsats <- liftIO $ do
-    res <- F.sequence $ IM.map testUnsatRule allrules
-    return $ IM.keys $ IM.filter id res
+    res <- F.sequence $ IM.map testUnsatRule nrules
+    return . IM.keys $ IM.filter id res
   return $ if null unsats
     then progress p prob NoProgress (Applicable (NoRuleRemovalProof p))
     else progress p prob (Progress $ removeRules unsats prob) (Applicable (RuleRemovalProof p unsats))
   where
     p = UnsatRules
-    allrules = _irules prob
+    nrules     = IM.filterWithKey (\k _ -> k `elem` nonDefined) (_irules prob)
+    nonDefined = TB.nonDefined (_timebounds prob)
 
 testUnsatRule :: Rule -> IO Bool
 testUnsatRule r = do
@@ -220,16 +223,7 @@ testUnsatRule r = do
     SMT.setFormat "QF_LIA"
     SMT.assert $ SMT.bigAnd (map encodeAtom (con r))
     return $ SMT.decode ()
-  return (isUnsat s)
-  where
-    encodeAtom (Eq p1 p2)  = encodePoly p1 SMT..== encodePoly p2
-    encodeAtom (Gte p1 p2) = encodePoly p1 SMT..>= encodePoly p2
-    encodePoly ms     = SMT.bigAdd (map encodeMono $ P.toView ms)
-    encodeMono (c,ps) = SMT.bigMul (SMT.num c: concatMap encodePower ps)
-    encodePower (v,e) = replicate e (SMT.ivar v)
-    isUnsat s = case s of
-      SMT.Unsat -> True
-      _         -> False
+  return (SMT.isUnsat s)
 
 solveUnreachableRules :: Its -> T.Return (T.ProofTree Its)
 solveUnreachableRules prob =

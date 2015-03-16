@@ -66,6 +66,7 @@ data Its = Its
 sizeIsDefined :: Its -> Bool
 sizeIsDefined prob = isJust (_rvgraph prob) && isJust (_sizebounds prob) && isJust (_localSizebounds prob)
 
+
 initialise :: ([Fun], [Var], [Rule]) -> Its
 initialise ([fs],_, rsl) = Its
   { _irules          = allRules
@@ -111,7 +112,7 @@ removeRules irs prob = prob
   , _localSizebounds = M.filterWithKey (\rv _ -> rvRule rv `notElem` irs) `fmap` _localSizebounds prob }
 
 restrictRules :: [RuleId] -> Its -> Its
-restrictRules irs prob = undefined
+restrictRules irs prob = prob
   { _irules          = IM.filterWithKey (\k _ -> k `elem` irs) (_irules prob)
   , _tgraph          = TG.restrictToNodes irs (_tgraph prob)
   -- MS: TODO restrict to labels
@@ -162,7 +163,7 @@ ppRules rs tb =
     lhss = map (PP.pretty . lhs) rsl
     rhss = map ((\p -> PP.space PP.<> ppSep PP.<+> p PP.<> PP.space) . PP.pretty . rhs ) rsl
     css  = map (PP.pretty . con ) rsl
-    tbs  = map ((PP.space PP.<>) . PP.pretty . (tb `TB.tboundOf`)) is
+    tbs  = map (\x -> (PP.space PP.<>) $ PP.tupled [PP.pretty $ tb `TB.tboundOf` x, PP.pretty $ tb `TB.tcostOf` x]) is
     (is, rsl) = unzip (IM.assocs rs)
 
 

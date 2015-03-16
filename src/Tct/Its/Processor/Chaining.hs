@@ -89,6 +89,7 @@ chainingCandidates f prob = filter (f prob)
 maxCost :: Int -> Its -> RuleId -> Bool
 maxCost n prob r = TB.tcostOf (_timebounds prob) r <=  n
 
+-- FIXME: we should compute out wrt to the function symbol not the rule
 maxOuts :: Int -> Its -> RuleId -> Bool
-maxOuts n prob r = length (TG.successors (_tgraph prob) r) <= n
+maxOuts n prob r = null $ drop n (TG.successors (_tgraph prob) r)
 

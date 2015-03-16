@@ -1,22 +1,28 @@
 module Tct.Its.Data.Rule 
   (
-  Term (..)
+  ATerm (..)
+  , Term
   , Var
   , Fun
+  , mapTerm
   , interpretTerm
 
-  , Atom  (..)
+  , AAtom  (..)
+  , Atom
   , Constraint    
   , isLinear
   , filterLinear
   , toGte
-  , celems
+  , celem, celems
 
-  , Rule (..)
+  , ARule (..)
+  , Rule
   , Rules
   , Vars
 
+  , renameWith
   , chain
+
 
   -- TODO: move
   , ppSep
@@ -42,14 +48,14 @@ isLinearA :: Atom -> Bool
 isLinearA (Eq p1 p2)  = P.isLinear p1 && P.isLinear p2
 isLinearA (Gte p1 p2) = P.isLinear p1 && P.isLinear p2
 
-toGteA :: Atom -> [Atom]
+toGteA :: Ord v => AAtom v -> [AAtom v]
 toGteA (Eq p1 p2)  = [Gte (p1 `sub` p2) zero, Gte (p2 `sub` p1) zero]
 toGteA (Gte p1 p2) = [Gte (p1 `sub` p2) zero]
 
 interpretTerm :: (Fun -> [a] -> a) -> (IPoly -> a) -> Term -> a
 interpretTerm f g t = f (fun t) (map g (args t))
 
-mapTerm :: (Fun -> Fun) -> (IPoly -> IPoly) -> Term -> Term
+mapTerm :: (f -> f') -> (AIPoly v -> AIPoly v') -> ATerm f v -> ATerm f' v'
 mapTerm f g (Term fs as) = Term (f fs) (map g as)
 
 foldTerm :: (a -> IPoly -> a) -> a -> Term -> a
@@ -62,16 +68,17 @@ isLinear = all isLinearA
 filterLinear :: Constraint -> Constraint
 filterLinear = filter isLinearA
 
-toGte :: Constraint -> Constraint
+toGte :: Ord v => AConstraint v -> AConstraint v
 toGte = concatMap toGteA
 
 celems :: Constraint -> [IPoly]
-celems = concatMap k
-  where
-    k (Eq e1 e2)  = [e1,e2]
-    k (Gte e1 e2) = [e1,e2]
+celems = concatMap celem
 
-mapRule :: (IPoly -> IPoly) -> Rule -> Rule
+celem :: Atom -> [IPoly]
+celem (Eq e1 e2)  = [e1,e2]
+celem (Gte e1 e2) = [e1,e2]
+
+mapRule :: (AIPoly v -> AIPoly v') -> ARule f v -> ARule f v'
 mapRule f (Rule l r cs) = Rule (mapTerm id f l) (map (mapTerm id f) r) (map k cs)
   where
     k (Eq p1 p2)  = Eq (f p1) (f p2)
@@ -83,6 +90,10 @@ foldRule f a (Rule l r cs) = cfold $ rfold $ lfold a
     lfold b = foldTerm f b l
     rfold b = foldl (foldTerm f) b r
     cfold b = foldl f b (celems cs)
+
+-- | unsafe rename
+renameWith :: (Ord v', Eq v) => (v -> v') -> ARule f v -> ARule f v'
+renameWith f = mapRule (P.rename f)
 
 -- | @rename r1 r2@ renames rule @r2@ wrt to rule @r1@.
 rename :: Rule -> Rule -> Rule
@@ -101,7 +112,8 @@ variables = foldRule (\acc r -> acc `S.union` S.fromList (P.variables r)) S.empt
 -- | @match r1 r2@ matches the rhs of @r1@ with the lhs of @l2@.
 chain :: Rule -> Rule -> Maybe Rule
 chain ru1 ru2 
-  | length (rhs ru1) /= 1 = Nothing
+  | length (rhs ru1)       /= 1 = Nothing
+  | fun (head . rhs $ ru1) /= fun (lhs ru2) = Nothing
   | otherwise = Just $ chain' ru1 (rename ru1 ru2)
   where
     chain' (Rule l1 r1 cs1) x@(Rule l2 r2 cs2) = Rule 
