@@ -33,7 +33,7 @@ import qualified Tct.Core.Common.Pretty           as PP
 import qualified Tct.Core.Common.Xml              as Xml
 import qualified Tct.Core.Data                    as T
 import           Tct.Core.Main                    (TctMode (..), unit)
-import           Tct.Core.Processor.Trivial       (failing)
+import           Tct.Core.Processor.Simple        (failing)
 
 import           Tct.Common.ProofCombinators
 import qualified Tct.Common.Polynomial            as P
