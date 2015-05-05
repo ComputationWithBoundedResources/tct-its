@@ -14,6 +14,7 @@ import qualified Tct.Core.Data                as T
 
 import           Tct.Common.ProofCombinators
 
+import           Tct.Its.Data
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.Rule
 import qualified Tct.Its.Data.Timebounds      as TB
@@ -47,7 +48,8 @@ instance Xml.Xml ChainProof where
 
 instance T.Processor ChainProcessor where
   type ProofObject ChainProcessor = ApplicationProof ChainProof
-  type Problem ChainProcessor     = Its
+  type I ChainProcessor           = Its
+  type O ChainProcessor           = Its
   type Forking ChainProcessor     = T.Optional T.Id
 
   solve p prob | isClosed prob = return $ closedProof p prob
@@ -80,7 +82,7 @@ chainOne prob r = do
   return (nprob, ChainProof r ris)
 
 
-chaining :: [RuleId] -> T.Strategy Its
+chaining :: [RuleId] -> ItsStrategy
 chaining = T.Proc . ChainProcessor
 
 chainingCandidates :: (Its -> RuleId -> Bool) -> Its -> [RuleId] -> [RuleId]

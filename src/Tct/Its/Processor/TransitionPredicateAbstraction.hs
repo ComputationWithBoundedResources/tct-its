@@ -20,6 +20,7 @@ import           Tct.Common.ProofCombinators
 import           Tct.Common.Ring
 import qualified Tct.Common.SMT                     as SMT
 
+import           Tct.Its.Data
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.Rule
 import qualified Tct.Its.Data.Timebounds            as TB
@@ -105,8 +106,9 @@ data TransitionAbstractionProof
 
 instance T.Processor TransitionAbstraction where
   type ProofObject TransitionAbstraction = ApplicationProof TransitionAbstractionProof
-  type Problem TransitionAbstraction = Its
-  type Forking TransitionAbstraction = T.Optional T.Id
+  type I TransitionAbstraction           = Its
+  type O TransitionAbstraction           = Its
+  type Forking TransitionAbstraction     = T.Optional T.Id
 
   solve p prob = do
     edges <- liftIO $ lfp abstract transform initials transitions
@@ -144,7 +146,7 @@ instance T.Processor TransitionAbstraction where
 
 --- * instances ------------------------------------------------------------------------------------------------------
 
-transitionAbstraction :: Predicates -> T.Strategy Its
+transitionAbstraction :: Predicates -> ItsStrategy
 transitionAbstraction ps = T.Proc Replacement{ predicates=ps, partial=Nothing }
 
 vsL, vsR :: Its -> [P.Polynomial Int (Either Var Var)]

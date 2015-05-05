@@ -32,8 +32,7 @@ import qualified Tct.Core.Common.Parser           as PR
 import qualified Tct.Core.Common.Pretty           as PP
 import qualified Tct.Core.Common.Xml              as Xml
 import qualified Tct.Core.Data                    as T
-import           Tct.Core.Main                    (TctMode (..), unit)
-import           Tct.Core.Processor.Simple        (failing)
+import           Tct.Core.Main                    (TctMode (..), defaultMode)
 
 import           Tct.Common.ProofCombinators
 import qualified Tct.Common.Polynomial            as P
@@ -141,13 +140,12 @@ cert T.Null           = T.timeUBCert T.constant
 cert (T.Opt (T.Id c)) = c
 
 
-progress :: (T.Processor p, T.Forking p ~ T.Optional T.Id)
-  => p -> T.Problem p -> Progress (T.Problem p) -> T.ProofObject p -> T.Return (T.ProofTree (T.Problem p))
+progress :: (T.Processor p, T.Forking p ~ T.Optional T.Id, T.I p ~ T.O p)
+  => p -> T.I p -> Progress (T.I p) -> T.ProofObject p -> T.Return (T.ProofTree (T.O p))
 progress p prob (Progress prob') proof = T.resultToTree p prob $ T.Success (T.Opt $ T.Id prob') proof cert
 progress p prob NoProgress proof       = T.resultToTree p prob $ T.Fail proof
 
-closedProof :: (T.Processor p , T.Forking p ~ T.Optional a, T.Problem p ~ Its, T.ProofObject p ~ ApplicationProof p1)
-  => p -> Its -> T.Return (T.ProofTree Its)
+closedProof :: (T.Processor p, T.Forking p ~ T.Optional a, T.I p ~ Its, T.O p ~ Its, T.ProofObject p ~ ApplicationProof p1) => p -> Its -> T.Return (T.ProofTree Its)
 closedProof p prob = T.resultToTree p prob $ T.Success T.Null Closed (const $ T.timeUBCert b)
     where b = toComplexity $ TB.totalBound (_timebounds prob)
 
@@ -185,25 +183,8 @@ instance Xml.Xml Its where
   toXml _ = Xml.elt "itsInput" []
  
 -- mode
-itsMode :: TctMode Its ()
-itsMode = TctMode
-  { modeId              = "its"
-  , modeParser          = parser
-  , modeStrategies      = []
-
-  , modeDefaultStrategy = failing
-  , modeOptions         = unit
-  , modeModifyer        = const
-  , modeAnswer          = const $ return () }
-
---answering :: T.Return (T.ProofTree Its) -> T.SomeAnswer
---answering (T.Abort _)     = T.answer A.Unknown
---answering (T.Continue pt) = T.answer . toAnswer . toComplexity $ case F.toList pt of
-  --[prob] -> TB.totalBound (_timebounds prob)
-  --_      -> unknown
-  --where
-    --toAnswer T.Unknown = A.Unknown
-    --toAnswer c         = A.Yes(T.Unknown, c)
+itsMode :: TctMode Its Its ()
+itsMode = defaultMode "its" parser
 
 --- parse
 

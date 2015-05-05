@@ -52,6 +52,7 @@ import           Tct.Common.ProofCombinators
 import qualified Tct.Common.Polynomial        as P
 import qualified Tct.Common.SMT as SMT
 
+import           Tct.Its.Data
 import           Tct.Its.Data.Complexity
 import           Tct.Its.Data.Problem
 import qualified Tct.Its.Data.Timebounds      as TB
@@ -84,7 +85,8 @@ instance Xml.Xml PropagationProof where
 
 instance T.Processor PropagationProcessor where
   type ProofObject PropagationProcessor = ApplicationProof PropagationProof
-  type Problem PropagationProcessor     = Its
+  type I PropagationProcessor           = Its
+  type O PropagationProcessor           = Its
   type Forking PropagationProcessor     = T.Optional T.Id
 
   solve p prob | isClosed prob = return $ closedProof p prob
@@ -111,11 +113,11 @@ solveTrivialSCCs prob
     newprob = prob {_timebounds = TB.inserts old new }
       where (old,new) = (_timebounds prob, times_ pproof)
 
-boundTrivialSCCs :: T.Strategy Its
+boundTrivialSCCs :: ItsStrategy
 boundTrivialSCCs = T.Proc TrivialSCCs
 
 -- FIXME: MS only sound in the non-recursive case
-boundTrivialSCCsDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
+boundTrivialSCCsDeclaration :: T.Declaration ('[] T.:-> ItsStrategy)
 boundTrivialSCCsDeclaration = T.declare "simp" [desc]  () boundTrivialSCCs
   where desc = "Trivial SCCs in the transition graph admit a timebound 1. This processor always Succeeds."
 
@@ -150,10 +152,10 @@ propagateRule tgraph tbounds ru
   where ppbound = bigAdd [ tbounds `TB.tboundOf` t | (t,_) <- TG.predecessors tgraph ru ]
 
 
-knowledgePropagation :: T.Strategy Its
+knowledgePropagation :: ItsStrategy
 knowledgePropagation = T.Proc KnowledgePropagation
 
-knowledgePropagationDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
+knowledgePropagationDeclaration :: T.Declaration ('[] T.:-> ItsStrategy)
 knowledgePropagationDeclaration = T.declare "know" [desc]  () knowledgePropagation
   where desc = "Propagates complexities from the predecessors."
 
@@ -196,7 +198,8 @@ instance Xml.Xml RuleRemovalProof where
 
 instance T.Processor RuleRemovalProcessor where
   type ProofObject RuleRemovalProcessor = ApplicationProof RuleRemovalProof
-  type Problem RuleRemovalProcessor     = Its
+  type I RuleRemovalProcessor           = Its
+  type O RuleRemovalProcessor           = Its
   type Forking RuleRemovalProcessor     = T.Optional T.Id
 
   solve p prob | isClosed prob = return $ closedProof p prob
@@ -272,7 +275,8 @@ instance Xml.Xml PathRemovalProof where
 
 instance T.Processor PathRemovalProcessor where
   type ProofObject PathRemovalProcessor = ApplicationProof PathRemovalProof
-  type Problem PathRemovalProcessor     = Its
+  type I PathRemovalProcessor           = Its
+  type O PathRemovalProcessor           = Its
   type Forking PathRemovalProcessor     = T.Optional T.Id
 
   solve p prob | isClosed prob = return $ closedProof p prob
@@ -316,7 +320,8 @@ instance Xml.Xml ArgumentFilterProof where
 
 instance T.Processor ArgumentFilterProcessor where
   type ProofObject ArgumentFilterProcessor = ApplicationProof ArgumentFilterProof
-  type Problem ArgumentFilterProcessor     = Its
+  type I ArgumentFilterProcessor           = Its
+  type O ArgumentFilterProcessor           = Its
   type Forking ArgumentFilterProcessor     = T.Optional T.Id
 
   solve p prob | isClosed prob = return $ closedProof p prob
@@ -347,38 +352,38 @@ unusedFilter prob = indices $ foldr (S.union . unusedR) S.empty allrules
 
 
 -- * instances
-unsatRules :: T.Strategy Its
+unsatRules :: ItsStrategy
 unsatRules = T.Proc UnsatRules
 
-unsatRulesDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
+unsatRulesDeclaration :: T.Declaration ('[] T.:-> ItsStrategy)
 unsatRulesDeclaration = T.declare "unsatRules" [desc]  () unsatRules
   where desc = "This processor removes rules with unsatisfiable constraints."
 
-unsatPaths :: T.Strategy Its
+unsatPaths :: ItsStrategy
 unsatPaths = T.Proc UnsatPaths
 
-unsatPathsDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
+unsatPathsDeclaration :: T.Declaration ('[] T.:-> ItsStrategy)
 unsatPathsDeclaration = T.declare "unsatPaths" [desc]  () unsatPaths
   where desc = "This processor tests wether rule2 can follow rule1 for all edges in the flow graph."
 
-unreachableRules :: T.Strategy Its
+unreachableRules :: ItsStrategy
 unreachableRules = T.Proc UnreachableRules
 
-unreachableRulesDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
+unreachableRulesDeclaration :: T.Declaration ('[] T.:-> ItsStrategy)
 unreachableRulesDeclaration = T.declare "unreachableRules" [desc]  () unreachableRules
   where desc = "This processor removes rules not reachable from the starting location."
 
-leafRules :: T.Strategy Its
+leafRules :: ItsStrategy
 leafRules = T.Proc LeafRules
 
-leafRulesDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
+leafRulesDeclaration :: T.Declaration ('[] T.:-> ItsStrategy)
 leafRulesDeclaration = T.declare "leafRules" [desc]  () leafRules
   where desc = "This processor removes leafs in the transition graph."
 
-argumentFilter :: [Int] -> T.Strategy Its
+argumentFilter :: [Int] -> ItsStrategy
 argumentFilter = T.Proc . ArgumentFilter
 
-argumentFilterDeclaration :: T.Declaration ('[T.Argument 'T.Optional Filter] T.:-> T.Strategy Its)
+argumentFilterDeclaration :: T.Declaration ('[T.Argument 'T.Optional Filter] T.:-> ItsStrategy)
 argumentFilterDeclaration = T.declare "argumentFilter" [desc] (T.OneTuple $ arg) argumentFilter'
   where
     desc = "Removes argument positions acoording to the provided argument."
@@ -395,7 +400,7 @@ filterArg = T.arg { T.argName = "filter" , T.argDomain = "<filter>" }  `T.withHe
     f1      = "Specifies the filter to apply. <filter> is one of:"
     filters = map ("* "++)  [ show Unused ]
 
-instance T.SParsable prob Filter where
+instance T.SParsable i i Filter where
   parseS = CP.choice
     [ CP.symbol (show Unused) >> return Unused ]
 

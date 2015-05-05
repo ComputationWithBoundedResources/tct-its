@@ -16,7 +16,7 @@ import Tct.Its.Processor.Simplification                 as M
 import Tct.Its.Processor.Sizebounds                     as M
 import Tct.Its.Processor.TransitionPredicateAbstraction as M
 
-defaultSDs :: [StrategyDeclaration Its]
+defaultSDs :: [StrategyDeclaration Its Its]
 defaultSDs = [
   SD emptyDeclaration
   , SD farkasDeclaration

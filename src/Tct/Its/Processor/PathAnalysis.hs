@@ -7,6 +7,7 @@ import qualified Tct.Core.Data                as T
 
 import           Tct.Common.ProofCombinators
 
+import           Tct.Its.Data
 import           Tct.Its.Data.Types
 import           Tct.Its.Data.Problem
 import qualified Tct.Its.Data.TransitionGraph as TG
@@ -35,7 +36,8 @@ instance Xml.Xml PathAnalysisProof where
 
 instance T.Processor PathAnalysis where
   type ProofObject PathAnalysis = ApplicationProof PathAnalysisProof
-  type Problem PathAnalysis     = Its
+  type I PathAnalysis           = Its
+  type O PathAnalysis           = Its
   type Forking PathAnalysis     = []
 
   -- solve p prob | isClosed prob = return $ closedProof p prob
@@ -52,10 +54,10 @@ solvePathAnalysis prob
     pproof  = PathAnalysisProof { paths_ = paths }
     newprob = map ((`restrictRules` prob) . concatMap theSCC) paths
 
-pathAnalysis :: T.Strategy Its
+pathAnalysis :: ItsStrategy
 pathAnalysis = T.Proc PathAnalysis
 
-pathAnalysisDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
+pathAnalysisDeclaration :: T.Declaration ('[] T.:-> ItsStrategy)
 pathAnalysisDeclaration = T.declare "pathAnalysis" [desc]  () pathAnalysis
   where desc = "We consider maximal paths from the root node in the transition graph, seperately."
 

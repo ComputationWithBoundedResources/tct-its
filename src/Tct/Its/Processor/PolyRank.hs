@@ -79,6 +79,7 @@ import qualified Tct.Common.PolynomialInterpretation as PI
 import           Tct.Common.Ring
 import qualified Tct.Common.SMT as SMT
 
+import           Tct.Its.Data
 import qualified Tct.Its.Data.Complexity             as C
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.Rule
@@ -88,33 +89,33 @@ import qualified Tct.Its.Data.Sizebounds             as SB
 import qualified Tct.Its.Data.TransitionGraph        as TG
 
 --- Instances --------------------------------------------------------------------------------------------------------
-poly :: PI.Shape -> T.Strategy Its
+poly :: PI.Shape -> ItsStrategy
 poly shp = T.Proc polyRankProcessor{ shape = shp}
 
 -- TODO: check exact behaviou if constraints are satisfied
 -- in _T2_eric3.koat we get a strict order 1 > 1; which is wrong in the proof
 -- yet the rule is not applicable
-farkas :: T.Strategy Its
+farkas :: ItsStrategy
 farkas = T.Proc polyRankProcessor { useFarkas = True, shape = PI.Linear }
 
-timebounds :: [RuleId] -> T.Strategy Its
+timebounds :: [RuleId] -> ItsStrategy
 timebounds rs = T.Proc polyRankProcessor { useFarkas = True, shape = PI.Linear, withSizebounds = rs }
 
 timeboundsCandidates :: [RuleId] -> [[RuleId]]
 timeboundsCandidates = tail . L.subsequences
 
-polyDeclaration ::T.Declaration ('[ T.Argument 'T.Required PI.Shape ] T.:-> T.Strategy Its)
+polyDeclaration ::T.Declaration ('[ T.Argument 'T.Required PI.Shape ] T.:-> ItsStrategy)
 polyDeclaration = T.declare "poly" ["(non-liear) polynomial ranking function."] (T.OneTuple PI.shapeArg) poly
 
-farkasDeclaration ::T.Declaration ('[] T.:-> T.Strategy Its)
+farkasDeclaration ::T.Declaration ('[] T.:-> ItsStrategy)
 farkasDeclaration = T.declare "farkas" ["linear polynomial ranking function."] () farkas
 
-stronglyLinear, linear, quadratic :: T.Strategy Its
+stronglyLinear, linear, quadratic :: ItsStrategy
 stronglyLinear = T.Proc polyRankProcessor{ shape = PI.StronglyLinear }
 linear         = T.Proc polyRankProcessor{ shape = PI.Linear }
 quadratic      = T.Proc polyRankProcessor{ shape = PI.Quadratic }
 
-mixed :: Int -> T.Strategy Its
+mixed :: Int -> ItsStrategy
 mixed i = T.Proc polyRankProcessor{ shape = PI.Mixed i }
 
 
@@ -182,7 +183,8 @@ instance Xml.Xml PolyRankProof where
 
 instance T.Processor PolyRankProcessor where
   type ProofObject PolyRankProcessor = ApplicationProof PolyRankProof
-  type Problem PolyRankProcessor     = Its
+  type I PolyRankProcessor           = Its
+  type O PolyRankProcessor           = Its
   type Forking PolyRankProcessor     = T.Optional T.Id
 
   solve p prob | isClosed prob = return $ closedProof p prob 
@@ -219,7 +221,7 @@ entscheide proc prob@(Its
   let 
     solver 
       | useFarkas proc = SMT.yices
-      | otherwise      = SMT.minismt' ["-m","-ib", "-1"]
+      | otherwise      = SMT.minismt' ["-m","-ib", "-1"] Nothing
   res :: SMT.Result (M.Map Coefficient (Maybe Int), M.Map Strict Int) <- SMT.solveStM solver $ do 
     SMT.setFormat $ if useFarkas proc then "QF_LIA" else "QF_NIA"
     -- TODO: memoisation is here not used

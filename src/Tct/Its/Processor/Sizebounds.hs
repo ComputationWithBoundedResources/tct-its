@@ -16,6 +16,7 @@ import qualified Tct.Core.Data as T
 
 import           Tct.Common.ProofCombinators
 
+import           Tct.Its.Data
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.LocalSizebounds     (LocalSizebounds)
 import qualified Tct.Its.Data.LocalSizebounds     as LB (compute)
@@ -28,7 +29,7 @@ import qualified Tct.Its.Data.Sizebounds          as SB (initialise, updateSizeb
 
 
 -- | Computes local sizebounds; Initialises global sizebounds.
-localSizebound :: T.Strategy Its
+localSizebound :: ItsStrategy
 localSizebound = T.Proc LocalSizeboundsProc
 
 -- | Sets localSizebounds, rvgraph, sizebounds if not already defined.
@@ -64,7 +65,8 @@ instance Xml.Xml LocalSizeboundsProof where
 
 instance T.Processor LocalSizeboundsProcessor where
   type ProofObject LocalSizeboundsProcessor = ApplicationProof LocalSizeboundsProof
-  type Problem LocalSizeboundsProcessor     = Its
+  type I LocalSizeboundsProcessor           = Its
+  type O LocalSizeboundsProcessor           = Its
   type Forking LocalSizeboundsProcessor     = T.Optional T.Id
 
   solve p prob | isClosed prob = return $ closedProof p prob
@@ -94,7 +96,8 @@ instance Xml.Xml SizeboundsProof where
 
 instance T.Processor SizeboundsProcessor where
   type ProofObject SizeboundsProcessor = ApplicationProof SizeboundsProof
-  type Problem SizeboundsProcessor     = Its
+  type I SizeboundsProcessor           = Its
+  type O SizeboundsProcessor           = Its
   type Forking SizeboundsProcessor     = T.Optional T.Id
 
 
@@ -117,12 +120,12 @@ updateSizebounds prob = prob {_sizebounds = Just sbounds'} where
     (error "update localsizebounds" `fromMaybe` _localSizebounds prob)
 
 -- | Updates sizebounds.
-sizebounds :: T.Strategy Its
+sizebounds :: ItsStrategy
 sizebounds = withProblem $
   \prob -> if sizeIsDefined prob then sb else localSizebound >>> sb
   where sb = T.Proc SizeboundsProc
 
-sizeboundsDeclaration :: T.Declaration ('[] T.:-> T.Strategy Its)
+sizeboundsDeclaration :: T.Declaration ('[] T.:-> ItsStrategy)
 sizeboundsDeclaration = T.declare "sizebounds" [desc] () sizebounds
   where desc = "Computes global sizebounds using timebounds."
 
