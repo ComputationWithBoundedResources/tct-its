@@ -1,4 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module Tct.Its.Processor.TransitionPredicateAbstraction 
   ( transitionAbstraction
   , sizeChangePredicates
