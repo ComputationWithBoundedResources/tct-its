@@ -69,8 +69,8 @@ abstractWith ps r1@(Rule _ [_] _) =
     isValid _           = return False
 
     entscheide cpolys poly  = do
-      res :: SMT.Result () <- SMT.solveStM SMT.yices $ do
-        SMT.setFormat "QF_LIA"
+      res :: SMT.Result () <- SMT.smtSolveSt SMT.yices $ do
+        SMT.setLogic SMT.QF_LIA
 
         let
           absolute p = SMT.bigAnd [ c SMT..== SMT.zero | c <- P.coefficients p ]
@@ -83,6 +83,7 @@ abstractWith ps r1@(Rule _ [_] _) =
               (p2,pc2) = P.splitConstantValue (bigAdd css2)
             return $ absolute (p1 `sub` p2) SMT..&& (pc1 SMT..>= pc2)
 
+        SMT.assert (SMT.top :: SMT.Formula Int)
         SMT.assert =<< poly `eliminate` cpolys
 
         return $ SMT.decode ()

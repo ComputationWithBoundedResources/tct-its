@@ -223,8 +223,8 @@ entscheide proc prob@(Its
     solver 
       | useFarkas proc = SMT.yices
       | otherwise      = SMT.minismt' ["-m","-ib", "-1"] Nothing
-  res :: SMT.Result (M.Map Coefficient (Maybe Int), M.Map Strict Int) <- SMT.solveStM solver $ do 
-    SMT.setFormat $ if useFarkas proc then "QF_LIA" else "QF_NIA"
+  res :: SMT.Result (M.Map Coefficient (Maybe Int), M.Map Strict Int) <- SMT.smtSolveSt solver $ do 
+    SMT.setLogic $ if useFarkas proc then SMT.QF_LIA else SMT.QF_NIA
     -- TODO: memoisation is here not used
     (ebsi,coefficientEncoder) <- SMT.memo $ PI.PolyInter `liftM` T.mapM encode absi
     (_, strictVarEncoder) <- SMT.memo $ mapM  (SMT.snvarMO . Strict) is
@@ -271,7 +271,7 @@ entscheide proc prob@(Its
       order (i,r) = do
         fm1 <- if useFarkas proc then decreaseFarkas (i,r) else decrease (i,r)
         fm2 <- if useFarkas proc then boundedFarkas r else bounded r
-        return (fm1 SMT..&& ((strict i SMT..> SMT.zero) SMT..==> fm2))
+        return (fm1 SMT..&& ((strict i SMT..> SMT.zero) SMT..=> fm2))
 
       orderConstraint = [ order r | r <- someirules ]
       rulesConstraint = [ strict i SMT..> SMT.zero | i <- strictrules ]
@@ -290,6 +290,7 @@ entscheide proc prob@(Its
 
 
 
+    SMT.assert $ (SMT.top :: SMT.Formula Int)
     SMT.assert =<< SMT.bigAndM orderConstraint
     SMT.assert $ SMT.bigOr rulesConstraint
     SMT.assert $ undefinedConstraint

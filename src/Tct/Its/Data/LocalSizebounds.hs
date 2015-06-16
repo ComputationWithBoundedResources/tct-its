@@ -39,7 +39,7 @@ import           Tct.Its.Data.Types
 
 type LocalSizebounds = M.Map RV (Complexity, Growth)
 
-type APoly  = P.Polynomial SMT.IExpr Var
+type APoly  = P.Polynomial (SMT.IExpr String) Var
 type IPolyV = P.PView Coefficient Var
 
 data Coefficient
@@ -123,8 +123,8 @@ entscheide lview rpoly cpolys = do
 
 entscheide' :: IPolyV -> IPoly -> [APoly] -> IO (SMT.Result (IPoly,IPoly))
 entscheide' lview rpoly cpolys = do
-  res :: SMT.Result (IPoly,IPoly) <- SMT.solveStM SMT.yices $ do
-    SMT.setFormat "QF_LIA"
+  res :: SMT.Result (IPoly,IPoly) <- SMT.smtSolveSt SMT.yices $ do
+    SMT.setLogic SMT.QF_LIA
 
     let
       interpretLhs = P.fromViewWith id

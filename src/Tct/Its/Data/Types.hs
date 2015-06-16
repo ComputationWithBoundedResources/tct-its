@@ -69,7 +69,7 @@ rulesIds :: Rules -> [RuleId]
 rulesIds = IM.keys
 
 -- | Standard atom encoding.
-encodeAtom :: Atom -> SMT.Formula SMT.IFormula
+encodeAtom :: Ord v => AAtom v -> SMT.Formula v
 encodeAtom (Eq p1 p2)  = SMT.encodePoly p1 SMT..== SMT.encodePoly p2
 encodeAtom (Gte p1 p2) = SMT.encodePoly p1 SMT..>= SMT.encodePoly p2
 

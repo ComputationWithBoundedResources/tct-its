@@ -222,8 +222,8 @@ solveUnsatRules prob = do
 
 testUnsatRule :: Rule -> IO Bool
 testUnsatRule r = do
-  s :: SMT.Result () <- SMT.solveStM SMT.yices $ do
-    SMT.setFormat "QF_LIA"
+  s :: SMT.Result () <- SMT.smtSolveSt SMT.yices $ do
+    SMT.setLogic SMT.QF_LIA
     SMT.assert $ SMT.bigAnd (map encodeAtom (con r))
     return $ SMT.decode ()
   return (SMT.isUnsat s)
