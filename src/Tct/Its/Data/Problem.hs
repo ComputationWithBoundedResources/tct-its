@@ -27,7 +27,6 @@ import qualified Data.IntMap.Strict               as IM
 import qualified Data.Map.Strict                  as M
 import           Data.Maybe                       (isJust)
 
-import           Tct.Core.Common.Error            (TctError (..))
 import qualified Tct.Core.Common.Parser           as PR
 import qualified Tct.Core.Common.Pretty           as PP
 import qualified Tct.Core.Common.Xml              as Xml
@@ -184,13 +183,16 @@ instance Xml.Xml Its where
  
 -- mode
 itsMode :: TctMode Its Its ()
-itsMode = defaultMode "its" parser
+itsMode = defaultMode "its" parserIO
 
 --- parse
 
-parser :: String -> Either TctError Its
+parserIO :: FilePath -> IO (Either String Its)
+parserIO = fmap parser . readFile
+
+parser :: String -> Either String Its
 parser s = case PR.parse pProblem "" s of
-  Left e  -> Left $ TctParseError (show e)
+  Left e  -> Left  (show e)
   Right p -> Right (initialise p)
 
 pProblem :: Parser ([Fun], [Var], [Rule])
