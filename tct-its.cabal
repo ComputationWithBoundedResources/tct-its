@@ -19,7 +19,7 @@ Description:
 Cabal-version: >= 1.8
 Build-type: Simple
 
-Executable its
+Executable tct-its
   main-is: 
     Tct/Its/Main.hs
   hs-source-dirs:
