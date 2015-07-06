@@ -1,23 +1,26 @@
-Name:               tct-its
-Version:            3.0.0
+Name:          tct-its
+Version:       3.0.0
 Author:
-  Michael Schaper <michael.schaper@uibk.ac.at>,
+  Georg Moser, Michael Schaper
 Maintainer:
   Michael Schaper <michael.schaper@uibk.ac.at>,
-Category: Program Analysis
-Stability: Experimental
-License: BSD3
-License-file: LICENSE
-Homepage: http://cl-informatik.uibk.ac.at/software/tct/
-Synopsis: A Complexity Analyser for Integer Transition Systems
+Category:      Program Analysis
+Stability:     Experimental
+License:       BSD3
+License-file:  LICENSE
+Homepage:      http://cl-informatik.uibk.ac.at/software/tct/
+Synopsis:      A Complexity Analyser for Integer Transition Systems
 Description:
   The Tyrolean Complexity Tool (TcT for short) is a tool for proving 
   resource bounds for different formal systems. This package provides 
   techniques to analyse runtime- and sizebounds for integer transtions 
   systems (ITS).
-
 Cabal-version: >= 1.8
-Build-type: Simple
+Build-type:    Simple
+
+source-repository head
+  type:     git
+  location: git://github.com/ComputationWithBoundedResources/tct-its
 
 Executable tct-its
   main-is: 
