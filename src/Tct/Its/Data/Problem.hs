@@ -1,6 +1,8 @@
 module Tct.Its.Data.Problem
   ( Its (..)
-
+  , fromString
+  , fromFile
+  
   , removeRules
   , restrictRules
 
@@ -183,15 +185,15 @@ instance Xml.Xml Its where
  
 -- mode
 itsMode :: TctMode Its Its ()
-itsMode = defaultMode "its" parserIO
+itsMode = defaultMode "its" fromFile
 
 --- parse
 
-parserIO :: FilePath -> IO (Either String Its)
-parserIO = fmap parser . readFile
+fromFile :: FilePath -> IO (Either String Its)
+fromFile = fmap fromString . readFile
 
-parser :: String -> Either String Its
-parser s = case PR.parse pProblem "" s of
+fromString :: String -> Either String Its
+fromString s = case PR.parse pProblem "" s of
   Left e  -> Left  (show e)
   Right p -> Right (initialise p)
 
