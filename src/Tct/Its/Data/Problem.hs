@@ -24,6 +24,7 @@ module Tct.Its.Data.Problem
   ) where
 
 
+import Data.Typeable
 import           Control.Monad                    (void)
 import qualified Data.IntMap.Strict               as IM
 import qualified Data.Map.Strict                  as M
@@ -61,7 +62,7 @@ data Its = Its
   , _timebounds      :: Timebounds
   , _sizebounds      :: Maybe Sizebounds
   , _localSizebounds :: Maybe LocalSizebounds
-  } deriving Show
+  } deriving (Show, Typeable)
 
 sizeIsDefined :: Its -> Bool
 sizeIsDefined prob = isJust (_rvgraph prob) && isJust (_sizebounds prob) && isJust (_localSizebounds prob)
