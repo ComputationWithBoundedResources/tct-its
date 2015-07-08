@@ -249,7 +249,7 @@ solveLeafRules prob =
   where
     mkproof leafs = let prob' = removeRules leafs prob in prob'{_timebounds = TB.addLeafCost (_timebounds prob') (length leafs)}
     p         = LeafRules
-    isLeave gr n = Gr.outdeg gr n == 0
+    isLeave gr n = Gr.indeg gr n > 0 && Gr.outdeg gr n == 0
     solveLeafRule gr leafs =
       let leafs' = filter (isLeave gr)  (Gr.nodes gr) in
       if null leafs'
