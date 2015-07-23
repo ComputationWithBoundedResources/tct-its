@@ -1,0 +1,13 @@
+language: haskell
+ghc:
+  - "7.8"
+  - "7.10"
+notifications:
+email: true
+
+before_install:
+  - git clone https://github.com/ComputationWithBoundedResources/slogic
+  - git clone https://github.com/ComputationWithBoundedResources/tct-core
+  - git clone https://github.com/ComputationWithBoundedResources/tct-common
+  - git clone https://github.com/ComputationWithBoundedResources/tct-its
+  - cabal install **/*.cabal

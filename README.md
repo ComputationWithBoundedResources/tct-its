@@ -27,7 +27,6 @@ install the packages and executables via `cabal`.
   git clone https://github.com/ComputationWithBoundedResources/tct-core
   git clone https://github.com/ComputationWithBoundedResources/tct-common
   git clone https://github.com/ComputationWithBoundedResources/tct-its
-  git clone https://github.com/ComputationWithBoundedResources/term-rewriting-xml
   cabal install **/*.cabal
   ```
 
