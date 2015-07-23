@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/ComputationWithBoundedResources/tct-its.svg?branch=master)](https://travis-ci.org/ComputationWithBoundedResources/tct-its)
+
 tct-its
 =======
 This package is part of the _Tyrolean Complexity Tool (TcT)_ and provides
