@@ -1,6 +1,7 @@
 module Tct.Its.Processor.Chaining 
   ( chaining
   , chainingCandidates
+  , isUnknown
   , maxCost
   , maxOuts
   ) where
@@ -87,6 +88,9 @@ chaining = T.Proc . ChainProcessor
 
 chainingCandidates :: (Its -> RuleId -> Bool) -> Its -> [RuleId] -> [RuleId]
 chainingCandidates f prob = filter (f prob) 
+
+isUnknown :: Its -> RuleId -> Bool
+isUnknown prob = (`elem` TB.nonDefined (_timebounds prob))
 
 maxCost :: Int -> Its -> RuleId -> Bool
 maxCost n prob r = TB.tcostOf (_timebounds prob) r <=  n
