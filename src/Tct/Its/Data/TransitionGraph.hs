@@ -137,7 +137,8 @@ fromNextSCC tgraph tbounds = k (sccs tgraph)
     k = filter (any (`elem` undefineds))
 
 instance PP.Pretty TGraph where
-  pretty = PP.pretty . lines . Gr.prettify
+  pretty gr = PP.list . map k $ Gr.nodes gr
+    where k n = PP.int n PP.<> PP.string "->" PP.<> PP.set' (Gr.suc gr n)
 
 incoming :: TGraph -> [RuleId] -> [RV']
 incoming tgraph somerules = S.toList $ S.filter ((`S.notMember` ous) . fst) ins

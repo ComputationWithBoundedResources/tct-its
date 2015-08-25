@@ -89,7 +89,7 @@ inserts :: Timebounds -> TimeboundsMap -> Timebounds
 inserts tb1 tb2 = tb1{tbounds_ = IM.union tb2 (tbounds_ tb1)}
 
 addLeafCost :: Timebounds -> Int -> Timebounds
-addLeafCost tb c = tb{leafcost_ = c + (leafcost_ tb)}
+addLeafCost tb c = tb{leafcost_ = c + leafcost_ tb}
 
 bridge :: Timebounds -> RuleId -> [(RuleId,RuleId)] -> Timebounds
 bridge tb r rs = tb 
