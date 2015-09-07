@@ -61,7 +61,9 @@ module Tct.Its.Processor.PolyRank
 
   ) where
 
+import           Control.Applicative                 ((<$>))
 import           Control.Monad                       (liftM)
+import           Control.Monad.Error                 (throwError)
 import           Control.Monad.Trans                 (liftIO)
 import qualified Data.List                           as L (partition, intersect, subsequences)
 import           Data.Maybe                          (fromMaybe)
@@ -194,15 +196,15 @@ instance T.Processor PolyRankProcessor where
         = return $ progress p prob NoProgress (Inapplicable "Sizebounds not initialised.")
     | otherwise = do
         res  <- liftIO $ entscheide p prob
-        return . uncurry (progress p prob) $ case res of
+        uncurry (progress p prob) <$> case res of
           SMT.Sat order -> 
             -- MS: for the timebounds processor we do not enforce that the predecessor of strictcomponents is defined
             if hasProgress prob (times_ order)
-              then (Progress $ updateTimebounds prob (times_ order), Applicable (PolyRankProof (Order order)))
-              else (NoProgress, Applicable (PolyRankProof Incompatible))
+              then return (Progress $ updateTimebounds prob (times_ order), Applicable (PolyRankProof (Order order)))
+              else return (NoProgress, Applicable (PolyRankProof Incompatible))
           -- MS: should return fail; then it is captured by ErroneousProc
-          SMT.Error s   -> (NoProgress, (Inapplicable s))
-          _             -> (NoProgress, (Applicable (PolyRankProof Incompatible)))
+          SMT.Error s   ->  throwError (userError s)
+          _             -> return (NoProgress, (Applicable (PolyRankProof Incompatible)))
 
 
 newtype Strict = Strict { unStrict :: Int }
