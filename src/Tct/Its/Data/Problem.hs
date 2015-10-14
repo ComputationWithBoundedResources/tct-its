@@ -1,8 +1,7 @@
 module Tct.Its.Data.Problem
   ( Its (..)
-  , fromString
-  , fromFile
-  
+
+  , initialise
   , removeRules
   , restrictRules
 
@@ -19,26 +18,22 @@ module Tct.Its.Data.Problem
   , Progress (..)
   , hasProgress
   , progress
-
-  , itsMode
   ) where
 
 
-import Data.Typeable
-import           Control.Monad                    (void)
 import qualified Data.IntMap.Strict               as IM
 import qualified Data.Map.Strict                  as M
 import           Data.Maybe                       (isJust)
+import           Data.Typeable
 
-import qualified Tct.Core.Common.Parser           as PR
 import qualified Tct.Core.Common.Pretty           as PP
 import qualified Tct.Core.Common.Xml              as Xml
 import qualified Tct.Core.Data                    as T
-import           Tct.Core.Main                    (TctMode (..), defaultMode)
 
-import           Tct.Common.ProofCombinators
 import qualified Tct.Common.Polynomial            as P
+import           Tct.Common.ProofCombinators
 
+import           Tct.Its.Data.Complexity          (toComplexity)
 import           Tct.Its.Data.LocalSizebounds     (LocalSizebounds)
 import           Tct.Its.Data.ResultVariableGraph (RVGraph)
 import           Tct.Its.Data.Rule
@@ -48,7 +43,6 @@ import qualified Tct.Its.Data.Timebounds          as TB
 import           Tct.Its.Data.TransitionGraph     (TGraph)
 import qualified Tct.Its.Data.TransitionGraph     as TG
 import           Tct.Its.Data.Types
-import           Tct.Its.Data.Complexity (toComplexity)
 
 
 data Its = Its
@@ -103,7 +97,7 @@ validate = all validRule
       _   -> False
 
 removeRules :: [RuleId] -> Its -> Its
-removeRules irs prob = prob 
+removeRules irs prob = prob
   { _irules          = IM.filterWithKey (\k _ -> k `notElem` irs) (_irules prob)
   , _tgraph          = TG.deleteNodes irs (_tgraph prob)
   -- MS: TODO filter wrt to labels
@@ -141,15 +135,13 @@ cert :: T.Optional T.Id T.Certificate -> T.Certificate
 cert T.Null           = T.timeUBCert T.constant
 cert (T.Opt (T.Id c)) = c
 
+progress :: (T.Processor p, T.Forking p ~ T.Optional T.Id) => Progress (T.Out p) -> T.ProofObject p -> T.TctM (T.Return p)
+progress (Progress prob') proof = T.succeedWith proof cert (T.Opt $ T.Id prob')
+progress NoProgress proof       = T.abortWith proof
 
-progress :: (T.Processor p, T.Forking p ~ T.Optional T.Id, T.I p ~ T.O p)
-  => p -> T.I p -> Progress (T.I p) -> T.ProofObject p -> T.Return (T.ProofTree (T.O p))
-progress p prob (Progress prob') proof = T.resultToTree p prob $ T.Success (T.Opt $ T.Id prob') proof cert
-progress p prob NoProgress proof       = T.resultToTree p prob $ T.Fail proof
-
-closedProof :: (T.Processor p, T.Forking p ~ T.Optional a, T.I p ~ Its, T.O p ~ Its, T.ProofObject p ~ ApplicationProof p1) => p -> Its -> T.Return (T.ProofTree Its)
-closedProof p prob = T.resultToTree p prob $ T.Success T.Null Closed (const $ T.timeUBCert b)
-    where b = toComplexity $ TB.totalBound (_timebounds prob)
+closedProof :: (T.Processor p, T.Forking p ~ T.Optional a, T.ProofObject p ~ ApplicationProof p1) => Its -> T.TctM (T.Return p)
+closedProof prob = T.succeedWith Closed (const $ T.timeUBCert b) T.Null
+  where b = toComplexity $ TB.totalBound (_timebounds prob)
 
 ppRules :: Rules -> TB.Timebounds -> PP.Doc
 ppRules rs tb =
@@ -183,27 +175,4 @@ instance PP.Pretty Its where
 
 instance Xml.Xml Its where
   toXml _ = Xml.elt "itsInput" []
- 
--- mode
-itsMode :: TctMode Its Its ()
-itsMode = defaultMode "its" fromFile
-
---- parse
-
-fromFile :: FilePath -> IO (Either String Its)
-fromFile = fmap fromString . readFile
-
-fromString :: String -> Either String Its
-fromString s = case PR.parse pProblem "" s of
-  Left e  -> Left  (show e)
-  Right p -> Right (initialise p)
-
-pProblem :: Parser ([Fun], [Var], [Rule])
-pProblem = do
-  void $ PR.parens (PR.symbol "GOAL COMPLEXITY")
-  fs <- PR.parens (PR.symbol "STARTTERM" >> PR.parens (PR.symbol "FUNCTIONSYMBOLS" >> PR.many1 PR.identifier))
-  vs <- PR.parens (PR.symbol "VAR" >> PR.many PR.identifier)
-  rs <- PR.parens (PR.symbol "RULES" >> PR.many pRule)
-  return (fs, vs, rs)
-  PR.<?> "problem"
 

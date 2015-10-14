@@ -109,11 +109,11 @@ data TransitionAbstractionProof
 
 instance T.Processor TransitionAbstraction where
   type ProofObject TransitionAbstraction = ApplicationProof TransitionAbstractionProof
-  type I TransitionAbstraction           = Its
-  type O TransitionAbstraction           = Its
+  type In  TransitionAbstraction         = Its
+  type Out TransitionAbstraction         = Its
   type Forking TransitionAbstraction     = T.Optional T.Id
 
-  solve p prob = do
+  execute p prob = do
     edges <- liftIO $ lfp abstract transform initials transitions
     let
       fresh = let m = maximum (IM.keys $ _irules prob) in [m..]
@@ -135,7 +135,7 @@ instance T.Processor TransitionAbstraction where
         Just _ -> undefined
       proof = ReplacementProof
 
-    return $ progress p prob (Progress nprob) (Applicable proof)
+    progress (Progress nprob) (Applicable proof)
       where
         abstract  = abstractWith (predicates p)
         transform = transformWith (predicates p)
@@ -150,7 +150,7 @@ instance T.Processor TransitionAbstraction where
 --- * instances ------------------------------------------------------------------------------------------------------
 
 transitionAbstraction :: Predicates -> ItsStrategy
-transitionAbstraction ps = T.Proc Replacement{ predicates=ps, partial=Nothing }
+transitionAbstraction ps = T.Apply Replacement{ predicates=ps, partial=Nothing }
 
 vsL, vsR :: Its -> [P.Polynomial Int (Either Var Var)]
 vsL = map (P.rename Left . P.variable) . domain

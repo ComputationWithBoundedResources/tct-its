@@ -11,7 +11,7 @@ import           Data.Maybe                       (fromMaybe)
 
 import qualified Tct.Core.Common.Pretty           as PP
 import qualified Tct.Core.Common.Xml              as Xml
-import           Tct.Core (withProblem, (>>>))
+import           Tct.Core (withProblem, (.>>>))
 import qualified Tct.Core.Data as T
 
 import           Tct.Common.ProofCombinators
@@ -30,7 +30,7 @@ import qualified Tct.Its.Data.Sizebounds          as SB (initialise, updateSizeb
 
 -- | Computes local sizebounds; Initialises global sizebounds.
 localSizebound :: ItsStrategy
-localSizebound = T.Proc LocalSizeboundsProc
+localSizebound = T.Apply LocalSizeboundsProc
 
 -- | Sets localSizebounds, rvgraph, sizebounds if not already defined.
 initialiseSizebounds :: Its -> IO Its
@@ -65,17 +65,17 @@ instance Xml.Xml LocalSizeboundsProof where
 
 instance T.Processor LocalSizeboundsProcessor where
   type ProofObject LocalSizeboundsProcessor = ApplicationProof LocalSizeboundsProof
-  type I LocalSizeboundsProcessor           = Its
-  type O LocalSizeboundsProcessor           = Its
+  type In  LocalSizeboundsProcessor         = Its
+  type Out LocalSizeboundsProcessor         = Its
   type Forking LocalSizeboundsProcessor     = T.Optional T.Id
 
-  solve p prob | isClosed prob = return $ closedProof p prob
-  solve p prob = do
+  execute LocalSizeboundsProc prob | isClosed prob = closedProof prob
+  execute LocalSizeboundsProc prob = do
     nprob <- liftIO $ initialiseSizebounds prob
     let pproof = LocalSizeboundsProof (domain prob, error "proc sizeb" `fromMaybe` _localSizebounds nprob) (error "proc rv" `fromMaybe` _rvgraph nprob)
-    return $ if _localSizebounds prob /= _localSizebounds nprob
-      then progress p prob (Progress nprob) (Applicable pproof)
-      else progress p prob NoProgress (Applicable LocalSizeboundsFail)
+    if _localSizebounds prob /= _localSizebounds nprob
+      then progress (Progress nprob) (Applicable pproof)
+      else progress NoProgress (Applicable LocalSizeboundsFail)
 
 
 data SizeboundsProcessor = SizeboundsProc deriving Show
@@ -96,16 +96,16 @@ instance Xml.Xml SizeboundsProof where
 
 instance T.Processor SizeboundsProcessor where
   type ProofObject SizeboundsProcessor = ApplicationProof SizeboundsProof
-  type I SizeboundsProcessor           = Its
-  type O SizeboundsProcessor           = Its
+  type In  SizeboundsProcessor         = Its
+  type Out SizeboundsProcessor         = Its
   type Forking SizeboundsProcessor     = T.Optional T.Id
 
 
-  solve p prob | isClosed prob = return $ closedProof p prob
-  solve p prob = return $
+  execute SizeboundsProc prob | isClosed prob = closedProof prob
+  execute SizeboundsProc prob = 
     if _sizebounds prob /= _sizebounds nprob
-      then progress p prob (Progress nprob) (Applicable pproof)
-      else progress p prob NoProgress (Applicable SizeboundsFail)
+      then progress (Progress nprob) (Applicable pproof)
+      else progress NoProgress (Applicable SizeboundsFail)
     where
       nprob = updateSizebounds prob
       pproof = SizeboundsProof (domain prob, error "sizebound" `fromMaybe` _sizebounds nprob)
@@ -122,8 +122,8 @@ updateSizebounds prob = prob {_sizebounds = Just sbounds'} where
 -- | Updates sizebounds.
 sizebounds :: ItsStrategy
 sizebounds = withProblem $
-  \prob -> if sizeIsDefined prob then sb else localSizebound >>> sb
-  where sb = T.Proc SizeboundsProc
+  \prob -> if sizeIsDefined prob then sb else localSizebound .>>> sb
+  where sb = T.Apply SizeboundsProc
 
 sizeboundsDeclaration :: T.Declaration ('[] T.:-> ItsStrategy)
 sizeboundsDeclaration = T.declare "sizebounds" [desc] () sizebounds

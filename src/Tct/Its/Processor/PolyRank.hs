@@ -61,7 +61,6 @@ module Tct.Its.Processor.PolyRank
 
   ) where
 
-import           Control.Applicative                 ((<$>))
 import           Control.Monad                       (liftM)
 import           Control.Monad.Error                 (throwError)
 import           Control.Monad.Trans                 (liftIO)
@@ -93,16 +92,16 @@ import qualified Tct.Its.Data.TransitionGraph        as TG
 
 --- Instances --------------------------------------------------------------------------------------------------------
 poly :: PI.Shape -> ItsStrategy
-poly shp = T.Proc polyRankProcessor{ shape = shp}
+poly shp = T.Apply polyRankProcessor{ shape = shp}
 
 -- TODO: check exact behaviou if constraints are satisfied
 -- in _T2_eric3.koat we get a strict order 1 > 1; which is wrong in the proof
 -- yet the rule is not applicable
 farkas :: ItsStrategy
-farkas = T.Proc polyRankProcessor { useFarkas = True, shape = PI.Linear }
+farkas = T.Apply polyRankProcessor { useFarkas = True, shape = PI.Linear }
 
 timebounds :: [RuleId] -> ItsStrategy
-timebounds rs = T.Proc polyRankProcessor { useFarkas = True, shape = PI.Linear, withSizebounds = rs }
+timebounds rs = T.Apply polyRankProcessor { useFarkas = True, shape = PI.Linear, withSizebounds = rs }
 
 timeboundsCandidates :: [RuleId] -> [[RuleId]]
 timeboundsCandidates = tail . L.subsequences
@@ -114,12 +113,12 @@ farkasDeclaration ::T.Declaration ('[] T.:-> ItsStrategy)
 farkasDeclaration = T.declare "farkas" ["linear polynomial ranking function."] () farkas
 
 stronglyLinear, linear, quadratic :: ItsStrategy
-stronglyLinear = T.Proc polyRankProcessor{ shape = PI.StronglyLinear }
-linear         = T.Proc polyRankProcessor{ shape = PI.Linear }
-quadratic      = T.Proc polyRankProcessor{ shape = PI.Quadratic }
+stronglyLinear = T.Apply polyRankProcessor{ shape = PI.StronglyLinear }
+linear         = T.Apply polyRankProcessor{ shape = PI.Linear }
+quadratic      = T.Apply polyRankProcessor{ shape = PI.Quadratic }
 
 mixed :: Int -> ItsStrategy
-mixed i = T.Proc polyRankProcessor{ shape = PI.Mixed i }
+mixed i = T.Apply polyRankProcessor{ shape = PI.Mixed i }
 
 
 data PolyRankProcessor = PolyRank
@@ -186,24 +185,24 @@ instance Xml.Xml PolyRankProof where
 
 instance T.Processor PolyRankProcessor where
   type ProofObject PolyRankProcessor = ApplicationProof PolyRankProof
-  type I PolyRankProcessor           = Its
-  type O PolyRankProcessor           = Its
+  type In  PolyRankProcessor         = Its
+  type Out PolyRankProcessor         = Its
   type Forking PolyRankProcessor     = T.Optional T.Id
 
-  solve p prob | isClosed prob = return $ closedProof p prob 
-  solve p prob
+  execute _ prob | isClosed prob = closedProof prob 
+  execute p prob
     | not (null $ withSizebounds p) && not (sizeIsDefined prob) 
-        = return $ progress p prob NoProgress (Inapplicable "Sizebounds not initialised.")
+        = progress NoProgress (Inapplicable "Sizebounds not initialised.")
     | otherwise = do
         res  <- liftIO $ entscheide p prob
-        uncurry (progress p prob) <$> case res of
+        uncurry (progress) =<< case res of
           SMT.Sat order -> 
             -- MS: for the timebounds processor we do not enforce that the predecessor of strictcomponents is defined
             if hasProgress prob (times_ order)
               then return (Progress $ updateTimebounds prob (times_ order), Applicable (PolyRankProof (Order order)))
               else return (NoProgress, Applicable (PolyRankProof Incompatible))
           -- MS: should return fail; then it is captured by ErroneousProc
-          SMT.Error s   ->  throwError (userError s)
+          SMT.Error s   -> throwError (userError s)
           _             -> return (NoProgress, (Applicable (PolyRankProof Incompatible)))
 
 

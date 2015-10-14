@@ -1,4 +1,4 @@
-module Tct.Its.Processor.Chaining 
+module Tct.Its.Processor.Chaining
   ( chaining
   , chainingCandidates
   , isUnknown
@@ -6,7 +6,7 @@ module Tct.Its.Processor.Chaining
   , maxOuts
   ) where
 
-import Control.Monad
+import           Control.Monad
 import qualified Data.IntMap.Strict           as IM
 
 import qualified Tct.Core.Common.Pretty       as PP
@@ -26,21 +26,21 @@ import           Tct.Its.Data.Types
 data ChainProcessor = ChainProcessor [RuleId]
   deriving Show
 
-data ChainProof 
+data ChainProof
   = ChainProof
-    { removedRule :: RuleId 
-    , addedRules :: [RuleId] }
+    { removedRule :: RuleId
+    , addedRules  :: [RuleId] }
   | NoChainProof
   deriving Show
 
 instance PP.Pretty ChainProof where
   pretty NoChainProof
     = PP.text "No rule found for the application."
-  pretty pproof = PP.hsep 
-    [ PP.text "We combine rule" 
-    , PP.int (removedRule pproof) 
-    , PP.text "with rules" 
-    , PP.pretty (addedRules pproof) 
+  pretty pproof = PP.hsep
+    [ PP.text "We combine rule"
+    , PP.int (removedRule pproof)
+    , PP.text "with rules"
+    , PP.pretty (addedRules pproof)
     , PP.dot ]
 
 instance Xml.Xml ChainProof where
@@ -49,15 +49,15 @@ instance Xml.Xml ChainProof where
 
 instance T.Processor ChainProcessor where
   type ProofObject ChainProcessor = ApplicationProof ChainProof
-  type I ChainProcessor           = Its
-  type O ChainProcessor           = Its
+  type In  ChainProcessor         = Its
+  type Out ChainProcessor         = Its
   type Forking ChainProcessor     = T.Optional T.Id
 
-  solve p prob | isClosed prob = return $ closedProof p prob
-  solve p@(ChainProcessor choice) prob = 
-    case foldl (\acc r -> acc `mplus` chainOne prob r) Nothing choice of 
-      Nothing -> return $ progress p prob NoProgress (Applicable NoChainProof)
-      Just (nprob, pproof) -> return $ progress p prob (Progress nprob) (Applicable pproof)
+  execute _ prob | isClosed prob = closedProof prob
+  execute (ChainProcessor choice) prob =
+    case foldl (\acc r -> acc `mplus` chainOne prob r) Nothing choice of
+      Nothing              -> progress NoProgress (Applicable NoChainProof)
+      Just (nprob, pproof) -> progress (Progress nprob) (Applicable pproof)
 
 
 chainOne :: Its -> RuleId -> Maybe (Its, ChainProof)
@@ -68,7 +68,7 @@ chainOne prob r = do
     rrule  = irules IM.! r
   msuccs <- if r `elem` succs then Nothing else Just succs
   nrules <- forM msuccs (chain rrule . (irules IM.!))
-  let 
+  let
     nextid = maximum (IM.keys irules) + 1
     nirules = zip [nextid ..] nrules
     ris = fst (unzip nirules)
@@ -84,10 +84,10 @@ chainOne prob r = do
 
 
 chaining :: [RuleId] -> ItsStrategy
-chaining = T.Proc . ChainProcessor
+chaining = T.Apply . ChainProcessor
 
 chainingCandidates :: (Its -> RuleId -> Bool) -> Its -> [RuleId] -> [RuleId]
-chainingCandidates f prob = filter (f prob) 
+chainingCandidates f prob = filter (f prob)
 
 isUnknown :: Its -> RuleId -> Bool
 isUnknown prob = (`elem` TB.nonDefined (_timebounds prob))

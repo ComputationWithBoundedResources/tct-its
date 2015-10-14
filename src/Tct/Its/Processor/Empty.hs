@@ -1,18 +1,18 @@
 module Tct.Its.Processor.Empty where
 
 
-import qualified Tct.Core.Common.Pretty as PP
-import qualified Tct.Core.Common.Xml    as Xml
-import qualified Tct.Core.Data          as T
+import qualified Tct.Core.Common.Pretty  as PP
+import qualified Tct.Core.Common.Xml     as Xml
+import qualified Tct.Core.Data           as T
 
-import Tct.Its.Data.Complexity (toComplexity)
-import Tct.Its.Data.Problem 
-import Tct.Its.Data.Timebounds (totalBound)
-import Tct.Its.Data
+import           Tct.Its.Data
+import           Tct.Its.Data.Complexity (toComplexity)
+import           Tct.Its.Data.Problem
+import           Tct.Its.Data.Timebounds (totalBound)
 
 
-empty :: ItsStrategy 
-empty = T.Proc EmptyProc
+empty :: ItsStrategy
+empty = T.Apply EmptyProc
 
 emptyDeclaration :: T.Declaration ('[] T.:-> ItsStrategy)
 emptyDeclaration = T.declare "empty" ["Succeeds if the cost is defined, otherwise fails."] () empty
@@ -35,12 +35,12 @@ instance Xml.Xml EmptyProof where
 
 instance T.Processor EmptyProcessor where
   type ProofObject EmptyProcessor = EmptyProof
-  type I EmptyProcessor           = Its
-  type O EmptyProcessor           = Its
+  type In  EmptyProcessor         = Its
+  type Out EmptyProcessor         = Its
   type Forking EmptyProcessor     = T.Judgement
 
-  solve p prob = return . T.resultToTree p prob $ 
+  execute EmptyProc prob =
     if isClosed prob
-      then T.Success T.Judgement Empty (const . T.timeUBCert . toComplexity $ totalBound (_timebounds prob))
-      else T.Fail NonEmpty
+      then T.succeedWith0 Empty (const . T.timeUBCert . toComplexity $ totalBound (_timebounds prob))
+      else T.abortWith NonEmpty
 

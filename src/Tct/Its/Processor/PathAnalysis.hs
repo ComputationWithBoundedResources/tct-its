@@ -36,14 +36,14 @@ instance Xml.Xml PathAnalysisProof where
 
 instance T.Processor PathAnalysis where
   type ProofObject PathAnalysis = ApplicationProof PathAnalysisProof
-  type I PathAnalysis           = Its
-  type O PathAnalysis           = Its
+  type In   PathAnalysis        = Its
+  type Out PathAnalysis         = Its
   type Forking PathAnalysis     = []
 
   -- solve p prob | isClosed prob = return $ closedProof p prob
-  solve p prob = return . T.resultToTree p prob $ case solvePathAnalysis prob of
-    Nothing                -> T.Fail (Applicable NoPathAnalysisProof)
-    Just (pproof, newprob) -> T.Success newprob (Applicable pproof) bigAdd
+  execute PathAnalysis prob = case solvePathAnalysis prob of
+    Nothing                -> T.abortWith (Applicable NoPathAnalysisProof)
+    Just (pproof, newprob) -> T.succeedWith (Applicable pproof) bigAdd newprob 
 
 solvePathAnalysis :: Its -> Maybe (PathAnalysisProof, [Its])
 solvePathAnalysis prob
@@ -55,7 +55,7 @@ solvePathAnalysis prob
     newprob = map ((`restrictRules` prob) . concatMap theSCC) paths
 
 pathAnalysis :: ItsStrategy
-pathAnalysis = T.Proc PathAnalysis
+pathAnalysis = T.Apply PathAnalysis
 
 pathAnalysisDeclaration :: T.Declaration ('[] T.:-> ItsStrategy)
 pathAnalysisDeclaration = T.declare "pathAnalysis" [desc]  () pathAnalysis
