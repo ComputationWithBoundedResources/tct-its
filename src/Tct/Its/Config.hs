@@ -24,6 +24,7 @@ type ItsConfig = T.TctConfig Its
 
 itsConfig :: ItsConfig
 itsConfig = T.defaultTctConfig fromFile
+  `withDefaultStrategy` runtime
   `addStrategies`
     [ T.SD runtimeDeclaration ]
 
