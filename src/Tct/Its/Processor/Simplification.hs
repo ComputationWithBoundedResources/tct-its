@@ -392,7 +392,7 @@ data Filter
   = Unused 
   deriving Show
 
-filterArg :: T.Argument T.Required Filter
+filterArg :: T.Argument 'T.Required Filter
 filterArg = T.arg { T.argName = "filter" , T.argDomain = "<filter>" }  `T.withHelp` (f1:filters)
   where
     f1      = "Specifies the filter to apply. <filter> is one of:"

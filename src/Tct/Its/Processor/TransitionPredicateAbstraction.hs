@@ -8,7 +8,6 @@ module Tct.Its.Processor.TransitionPredicateAbstraction
   ) where
 
 
-import           Control.Applicative
 import           Control.Monad.Trans                (liftIO)
 import qualified Data.IntMap                        as IM
 import qualified Data.Set                           as S

@@ -10,7 +10,7 @@ module Tct.Its.Config
 
 import           Control.Monad          (void)
 
-import           Tct.Core               (addStrategies)
+import           Tct.Core               (addStrategies, withDefaultStrategy)
 import qualified Tct.Core.Common.Parser as PR
 import qualified Tct.Core.Data          as T
 import qualified Tct.Core.Main          as T
