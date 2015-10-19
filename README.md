@@ -7,7 +7,7 @@ This repository provides the `tct-its` library as well as the `tct-trs` executab
 ##Requirements
 
 Executables:
-  * [Glasgow Haskell Compiler, version 7.10](http://www.haskell.org/ghc/) 
+  * [Glasgow Haskell Compiler, version 7.10](http://www.haskell.org/ghc/)
   * [yices, version 2.3](http://yices.csl.sri.com/)
 
 Other packages
@@ -24,7 +24,7 @@ We recommend using [stack](https://github.com/commercialhaskell/stack) with the 
 To build and install the package run following command:
 
 ```bash
-stack install
+stack install tct-its
 ```
 
 ####Using Cabal
