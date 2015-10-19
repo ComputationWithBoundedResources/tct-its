@@ -2,7 +2,7 @@
 This package is part of the _Tyrolean Complexity Tool (TcT)_ and provides
 automatic complexity analysis of _Integer Transition Systems (ITSs)_.
 
-This repository provides the `tct-its` library as well as the `tct-trs` executable.
+This repository provides the `tct-its` library as well as the `tct-its` executable.
 
 ##Requirements
 
