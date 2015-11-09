@@ -6,19 +6,18 @@ module Tct.Its.Strategy
   , runtimeDeclaration
   ) where
 
-import qualified Data.IntMap.Strict as IM
 
 import           Tct.Core
 import qualified Tct.Core.Data      as T
 
-import           Tct.Its
-import           Tct.Its.Data
+import           Tct.Its.Data.Selector
+import           Tct.Its.Data.Problem
 import           Tct.Its.Processor
 
 runtimeDeclaration :: T.Declaration ('[Argument 'Optional Bool, Argument 'Optional Bool] T.:-> ItsStrategy)
 runtimeDeclaration = strategy "runtime" (atarg, afarg) def where
-  atarg = bool `withName` "useTransitionAbstraction" `optional` False
-  afarg = bool `withName` "useArgumentFilter"        `optional` False
+  atarg = bool "useTransitionAbstraction" ["Wether predicate abstraction should be used."] `optional` False
+  afarg = bool "useArgumentFilter" ["Wether argument filtering should be used."] `optional` False
 
 runtime :: ItsStrategy
 runtime  = T.deflFun runtimeDeclaration
@@ -54,9 +53,6 @@ def useAT useAF =
       \prob -> es $ fastestN 8 [ withKnowledgePropagation (timebounds c) | c <- timeboundsCandidates (selNextSCC prob) ]
 
 
-wellformed :: ItsStrategy
-wellformed = withProblem
-  $ \prob -> if validate (IM.elems $ _irules prob) then identity else abort
 
 -- FIXME: boundtrivialsccs is not always 1 in the recursive case; take max label
 simpl1 :: ItsStrategy

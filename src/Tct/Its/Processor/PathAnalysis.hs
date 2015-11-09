@@ -7,7 +7,6 @@ import qualified Tct.Core.Data                as T
 
 import           Tct.Common.ProofCombinators
 
-import           Tct.Its.Data
 import           Tct.Its.Data.Types
 import           Tct.Its.Data.Problem
 import qualified Tct.Its.Data.TransitionGraph as TG

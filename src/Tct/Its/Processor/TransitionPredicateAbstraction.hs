@@ -21,7 +21,6 @@ import           Tct.Common.ProofCombinators
 import           Tct.Common.Ring
 import qualified Tct.Common.SMT                     as SMT
 
-import           Tct.Its.Data
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.Rule
 import qualified Tct.Its.Data.Timebounds            as TB

@@ -121,6 +121,6 @@ sizeboundSumPlus tbounds sbounds lbounds rvgraph scc sps = bigAdd $ map k sps
 ppSizebounds :: Vars -> Sizebounds -> PP.Doc
 ppSizebounds vars sbounds = ppRVs vars (M.assocs sbounds) (\sbound -> [PP.pretty sbound])
 
-instance PP.Pretty (Vars,Sizebounds) where
+instance {-# OVERLAPPING #-} PP.Pretty (Vars,Sizebounds) where
   pretty = uncurry ppSizebounds
 

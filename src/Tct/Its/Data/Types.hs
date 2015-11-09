@@ -83,7 +83,7 @@ instance Functor SCC where
   f `fmap` Trivial a     = Trivial (f a)
   f `fmap` NonTrivial as = NonTrivial (map f as)
 
-instance (PP.Pretty a) => PP.Pretty (SCC a) where
+instance PP.Pretty a => PP.Pretty (SCC a) where
   pretty = PP.pretty . theSCC
 
 

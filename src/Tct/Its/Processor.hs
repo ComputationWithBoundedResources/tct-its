@@ -1,13 +1,16 @@
+-- | This module re-exports Tct.Its.Processor.*.
 module Tct.Its.Processor
   (
   module M
-  , defaultSDs
+  , wellformed
+  , defaultDecls
   ) where
 
-import Tct.Core.Data                                    (StrategyDeclaration (..))
 
-import Tct.Its.Data.Problem                             (Its)
+import Tct.Core
+import Tct.Its.Data.Problem
 
+import Tct.Its.Data.Selector                            as M
 import Tct.Its.Processor.Chaining                       as M
 import Tct.Its.Processor.Empty                          as M
 import Tct.Its.Processor.PathAnalysis                   as M
@@ -16,8 +19,9 @@ import Tct.Its.Processor.Simplification                 as M
 import Tct.Its.Processor.Sizebounds                     as M
 import Tct.Its.Processor.TransitionPredicateAbstraction as M
 
-defaultSDs :: [StrategyDeclaration Its Its]
-defaultSDs = [
+
+defaultDecls :: [StrategyDeclaration Its Its]
+defaultDecls = [
   SD emptyDeclaration
   , SD farkasDeclaration
   , SD knowledgePropagationDeclaration
@@ -28,4 +32,9 @@ defaultSDs = [
   , SD unreachableRulesDeclaration
   , SD unsatRulesDeclaration
   ]
+
+
+wellformed :: ItsStrategy
+wellformed = withProblem $ \prob -> 
+  when (not $ validate prob) (failing "Problem is not well-fomed.")
 
