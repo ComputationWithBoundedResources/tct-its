@@ -2,10 +2,9 @@ module Tct.Its.Config
   ( fromFile
   , fromString
 
+  , runIts
   , ItsConfig
   , itsConfig
-  , its
-  , itsDeclarations
   ) where
 
 
@@ -16,8 +15,7 @@ import qualified Tct.Core.Common.Parser as PR
 
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.Rule
-import           Tct.Its.Processor
-import           Tct.Its.Strategy
+import           Tct.Its.Strategies     (runtime)
 
 
 type ItsConfig = TctConfig Its
@@ -26,11 +24,8 @@ itsConfig :: ItsConfig
 itsConfig = defaultTctConfig fromFile
   `withDefaultStrategy` runtime
 
-its :: Declared Its Its => ItsConfig -> IO ()
-its = tct3
-
-itsDeclarations :: [StrategyDeclaration Its Its]
-itsDeclarations = SD runtimeDeclaration: defaultDecls
+runIts :: Declared Its Its => ItsConfig -> IO ()
+runIts = runTct
 
 --- parse
 

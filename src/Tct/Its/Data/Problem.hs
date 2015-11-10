@@ -1,6 +1,7 @@
 module Tct.Its.Data.Problem
   ( Its (..)
   , ItsStrategy
+  , ItsDeclaration
 
   , initialise
   , removeRules
@@ -59,7 +60,8 @@ data Its = Its
   , _localSizebounds :: Maybe LocalSizebounds
   } deriving (Show, Typeable)
 
-type ItsStrategy = T.Strategy Its Its
+type ItsStrategy    = T.Strategy Its Its
+type ItsDeclaration = T.StrategyDeclaration Its Its
 
 sizeIsDefined :: Its -> Bool
 sizeIsDefined prob = isJust (_rvgraph prob) && isJust (_sizebounds prob) && isJust (_localSizebounds prob)

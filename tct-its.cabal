@@ -71,7 +71,7 @@ Library
     Tct.Its.Data.TransitionAbstraction
     Tct.Its.Data.TransitionGraph
     Tct.Its.Data.Types
-    Tct.Its.Processor
+    Tct.Its.Processors
     Tct.Its.Processor.Chaining
     Tct.Its.Processor.Empty
     Tct.Its.Processor.PathAnalysis
@@ -79,7 +79,7 @@ Library
     Tct.Its.Processor.PolyRank
     Tct.Its.Processor.Simplification
     Tct.Its.Processor.Sizebounds
-    Tct.Its.Strategy
+    Tct.Its.Strategies
   build-depends:
     containers       >= 0.5 && < 0.6,
     mtl              >= 2.1 && < 2.3,

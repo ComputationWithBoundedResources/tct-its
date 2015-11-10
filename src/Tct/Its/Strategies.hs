@@ -1,9 +1,11 @@
 {-# LANGUAGE ImplicitParams #-}
-module Tct.Its.Strategy
+module Tct.Its.Strategies
   (
-  runtime
+  itsDeclarations
+  , runtime
   , runtime'
   , runtimeDeclaration
+  , module Tct.Its.Processors
   ) where
 
 
@@ -12,12 +14,30 @@ import qualified Tct.Core.Data      as T
 
 import           Tct.Its.Data.Selector
 import           Tct.Its.Data.Problem
-import           Tct.Its.Processor
+import           Tct.Its.Processors
+
+
+itsDeclarations :: [StrategyDeclaration Its Its]
+itsDeclarations = [
+  SD emptyDeclaration
+  , SD farkasDeclaration
+  , SD knowledgePropagationDeclaration
+  , SD leafRulesDeclaration
+  , SD pathAnalysisDeclaration
+  , SD polyDeclaration
+  , SD sizeboundsDeclaration
+  , SD unreachableRulesDeclaration
+  , SD unsatRulesDeclaration
+  ]
 
 runtimeDeclaration :: T.Declaration ('[Argument 'Optional Bool, Argument 'Optional Bool] T.:-> ItsStrategy)
 runtimeDeclaration = strategy "runtime" (atarg, afarg) def where
   atarg = bool "useTransitionAbstraction" ["Wether predicate abstraction should be used."] `optional` False
   afarg = bool "useArgumentFilter" ["Wether argument filtering should be used."] `optional` False
+
+wellformed :: ItsStrategy
+wellformed = withProblem $ \prob -> 
+  when (validate prob) (failing "Problem is not well-fomed.")
 
 runtime :: ItsStrategy
 runtime  = T.deflFun runtimeDeclaration
