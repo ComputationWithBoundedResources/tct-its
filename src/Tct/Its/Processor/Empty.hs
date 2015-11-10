@@ -40,6 +40,6 @@ instance T.Processor EmptyProcessor where
 
   execute EmptyProc prob =
     if isClosed prob
-      then T.succeedWith0 Empty (const . T.timeUBCert . toComplexity $ totalBound (_timebounds prob))
+      then T.succeedWith0 Empty (const . T.timeUBCert . toComplexity $ totalBound (timebounds_ prob))
       else T.abortWith NonEmpty
 

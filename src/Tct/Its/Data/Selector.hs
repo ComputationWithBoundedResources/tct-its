@@ -18,21 +18,21 @@ import           Tct.Its.Data.Types
 
 
 selAll :: Its -> [RuleId]
-selAll = IM.keys . _irules
+selAll = IM.keys . irules_
 
 selUndefineds :: Its -> [RuleId]
-selUndefineds = TB.nonDefined . _timebounds
+selUndefineds = TB.nonDefined . timebounds_
 
 selNextSCC :: Its -> [RuleId]
-selNextSCC prob = TG.nextSCC (_tgraph prob) (_timebounds prob)
+selNextSCC prob = TG.nextSCC (tgraph_ prob) (timebounds_ prob)
 
 selUpToNextSCC :: Its -> [RuleId]
-selUpToNextSCC prob = concat $ TG.upToNextSCC (_tgraph prob) (_timebounds prob)
+selUpToNextSCC prob = concat $ TG.upToNextSCC (tgraph_ prob) (timebounds_ prob)
 
 selFromNextSCC :: Its -> [RuleId]
-selFromNextSCC prob = concat $ TG.fromNextSCC (_tgraph prob) (_timebounds prob)
+selFromNextSCC prob = concat $ TG.fromNextSCC (tgraph_ prob) (timebounds_ prob)
 
 selToNextSCC :: Its -> [RuleId]
-selToNextSCC prob = nub . map fst $ TG.incoming(_tgraph prob) scc
+selToNextSCC prob = nub . map fst $ TG.incoming(tgraph_ prob) scc
   where scc = selNextSCC prob
 

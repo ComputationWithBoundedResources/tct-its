@@ -49,7 +49,7 @@ solvePathAnalysis prob
   | null (drop 1 paths) = Nothing
   | otherwise           = Just (pproof, newprob)
   where
-    paths   = TG.rootsPaths (_tgraph prob)
+    paths   = TG.rootsPaths (tgraph_ prob)
     pproof  = PathAnalysisProof { paths_ = paths }
     newprob = map ((`restrictRules` prob) . concatMap theSCC) paths
 

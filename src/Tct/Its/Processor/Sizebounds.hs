@@ -33,17 +33,17 @@ localSizebound = T.Apply LocalSizeboundsProc
 
 -- | Sets localSizebounds, rvgraph, sizebounds if not already defined.
 initialiseSizebounds :: Its -> IO Its
-initialiseSizebounds prob = case _localSizebounds prob of
+initialiseSizebounds prob = case localSizebounds_ prob of
   Just _ ->  return prob
   Nothing -> newprob
   where
     newprob = do
-      lbounds <- LB.compute (domain prob) (_irules prob)
+      lbounds <- LB.compute (domain prob) (irules_ prob)
       let
-        rvgraph = RVG.compute (_tgraph prob) lbounds
+        rvgraph = RVG.compute (tgraph_ prob) lbounds
         sbounds = SB.initialise lbounds
-      -- liftIO $ writeFile "/tmp/rvgraph.dot" $ maybe "Gr" (Gr.showDot . Gr.fglToDot) (_rvgraph prob)
-      return $ prob {_localSizebounds = Just lbounds, _rvgraph = Just rvgraph, _sizebounds = Just sbounds}
+      -- liftIO $ writeFile "/tmp/rvgraph.dot" $ maybe "Gr" (Gr.showDot . Gr.fglToDot) (rvgraph_ prob)
+      return $ prob {localSizebounds_ = Just lbounds, rvgraph_ = Just rvgraph, sizebounds_ = Just sbounds}
 
 
 data LocalSizeboundsProcessor = LocalSizeboundsProc deriving Show
@@ -71,8 +71,8 @@ instance T.Processor LocalSizeboundsProcessor where
   execute LocalSizeboundsProc prob | isClosed prob = closedProof prob
   execute LocalSizeboundsProc prob = do
     nprob <- liftIO $ initialiseSizebounds prob
-    let pproof = LocalSizeboundsProof (domain prob, error "proc sizeb" `fromMaybe` _localSizebounds nprob) (error "proc rv" `fromMaybe` _rvgraph nprob)
-    if _localSizebounds prob /= _localSizebounds nprob
+    let pproof = LocalSizeboundsProof (domain prob, error "proc sizeb" `fromMaybe` localSizebounds_ nprob) (error "proc rv" `fromMaybe` rvgraph_ nprob)
+    if localSizebounds_ prob /= localSizebounds_ nprob
       then progress (Progress nprob) (Applicable pproof)
       else progress NoProgress (Applicable LocalSizeboundsFail)
 
@@ -102,21 +102,21 @@ instance T.Processor SizeboundsProcessor where
 
   execute SizeboundsProc prob | isClosed prob = closedProof prob
   execute SizeboundsProc prob = 
-    if _sizebounds prob /= _sizebounds nprob
+    if sizebounds_ prob /= sizebounds_ nprob
       then progress (Progress nprob) (Applicable pproof)
       else progress NoProgress (Applicable SizeboundsFail)
     where
       nprob = updateSizebounds prob
-      pproof = SizeboundsProof (domain prob, error "sizebound" `fromMaybe` _sizebounds nprob)
+      pproof = SizeboundsProof (domain prob, error "sizebound" `fromMaybe` sizebounds_ nprob)
 
 updateSizebounds :: Its -> Its
-updateSizebounds prob = prob {_sizebounds = Just sbounds'} where
+updateSizebounds prob = prob {sizebounds_ = Just sbounds'} where
   sbounds' = SB.updateSizebounds
-    (_tgraph prob)
-    (error "update rvgraph" `fromMaybe` _rvgraph prob)
-    (_timebounds prob)
-    (error "update sizebounds" `fromMaybe` _sizebounds prob)
-    (error "update localsizebounds" `fromMaybe` _localSizebounds prob)
+    (tgraph_ prob)
+    (error "update rvgraph" `fromMaybe` rvgraph_ prob)
+    (timebounds_ prob)
+    (error "update sizebounds" `fromMaybe` sizebounds_ prob)
+    (error "update localsizebounds" `fromMaybe` localSizebounds_ prob)
 
 -- | Updates sizebounds.
 sizebounds :: ItsStrategy

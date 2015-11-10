@@ -214,10 +214,10 @@ find m k = error err `fromMaybe` M.lookup k m
 
 entscheide :: PolyRankProcessor -> Its -> IO (SMT.Result PolyOrder)
 entscheide proc prob@(Its
-  { _startterm       = startterm
-  , _tgraph          = tgraph
-  , _timebounds      = tbounds
-  , _sizebounds      = sizebounds
+  { startterm_       = startterm
+  , tgraph_          = tgraph
+  , timebounds_      = tbounds
+  , sizebounds_      = sizebounds
   }) = do
   let 
     solver 
@@ -302,7 +302,7 @@ entscheide proc prob@(Its
   where
 
     withSize = not $ null (withSizebounds proc)
-    allrules = _irules prob
+    allrules = irules_ prob
     someirules
       | withSize  = IM.assocs $ IM.filterWithKey (\k _ -> k `elem` withSizebounds proc)  allrules
       | otherwise = IM.assocs $ allrules
@@ -313,7 +313,7 @@ entscheide proc prob@(Its
         {-| otherwise     = SMT.fm `liftM` SMT.nvarm c-}
     absi = M.mapWithKey (curry (PI.mkInterpretation kind)) sig
     kind = PI.ConstructorBased shp S.empty 
-    sig = restrictSignature (S.fromList $ funs somerules) (_signature prob)
+    sig = restrictSignature (S.fromList $ funs somerules) (signature_ prob)
     funs = foldl (\fs (Rule l r _) -> fun l : map fun r ++ fs) []
     shp = if useFarkas proc then PI.Linear else shape proc
 

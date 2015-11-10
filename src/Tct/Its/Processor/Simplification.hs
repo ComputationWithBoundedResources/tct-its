@@ -102,13 +102,13 @@ executeTrivialSCCs prob
   | null pptimes = Nothing
   | otherwise    = Just (pproof, newprob)
   where
-    sccs = TG.trivialSCCs (_tgraph prob)
-    pptimes = [(scc,c) | scc <- sccs, scc `notElem` TB.defined (_timebounds prob), let c = one]
+    sccs = TG.trivialSCCs (tgraph_ prob)
+    pptimes = [(scc,c) | scc <- sccs, scc `notElem` TB.defined (timebounds_ prob), let c = one]
     pproof = PropagationProof
       { pproc_ = TrivialSCCs
       , times_ = IM.fromList pptimes }
-    newprob = prob {_timebounds = TB.inserts old new }
-      where (old,new) = (_timebounds prob, times_ pproof)
+    newprob = prob {timebounds_ = TB.inserts old new }
+      where (old,new) = (timebounds_ prob, times_ pproof)
 
 boundTrivialSCCs :: ItsStrategy
 boundTrivialSCCs = T.Apply TrivialSCCs
@@ -124,13 +124,13 @@ boundTrivialSCCsDeclaration = T.declare "simp" [desc]  () boundTrivialSCCs
 executeKnowledgePropagation :: Its -> Maybe (PropagationProof, Its)
 executeKnowledgePropagation prob = case propagateRules tgraph tbounds rs of
   ([],_)       -> Nothing
-  (ris,tbounds') -> Just (mkPProof ris tbounds', prob {_timebounds = tbounds'})
+  (ris,tbounds') -> Just (mkPProof ris tbounds', prob {timebounds_ = tbounds'})
   where
     mkPProof ris tbounds' = PropagationProof
       { pproc_ = KnowledgePropagation
       , times_ = IM.fromList $ map (\ri -> (ri,tbounds' `TB.tboundOf` ri)) ris }
-    tbounds = _timebounds prob
-    tgraph  = _tgraph prob
+    tbounds = timebounds_ prob
+    tgraph  = tgraph_ prob
     rs      = Gr.topsort tgraph
 
 propagateRules :: TG.TGraph -> TB.Timebounds -> [RuleId] -> ([RuleId],TB.Timebounds)
@@ -214,8 +214,8 @@ solveUnsatRules prob = do
     else progress (Progress $ removeRules unsats prob) (Applicable (RuleRemovalProof p unsats))
   where
     p = UnsatRules
-    nrules     = IM.filterWithKey (\k _ -> k `elem` nonDefined) (_irules prob)
-    nonDefined = TB.nonDefined (_timebounds prob)
+    nrules     = IM.filterWithKey (\k _ -> k `elem` nonDefined) (irules_ prob)
+    nonDefined = TB.nonDefined (timebounds_ prob)
 
 testUnsatRule :: Rule -> IO Bool
 testUnsatRule r = do
@@ -233,18 +233,18 @@ solveUnreachableRules prob =
     else progress (Progress $ removeRules unreachable prob) (Applicable (RuleRemovalProof p unreachable))
   where
     p         = UnreachableRules
-    tgraph    = _tgraph prob
+    tgraph    = tgraph_ prob
     starts    = IM.keys (startrules prob)
     minus a b = S.toList $ S.fromList a `S.difference` S.fromList b
 
 solveLeafRules :: Its -> T.TctM (T.Return RuleRemovalProcessor)
 solveLeafRules prob =
-  let leafs = solveLeafRule (_tgraph prob) [] in
+  let leafs = solveLeafRule (tgraph_ prob) [] in
   if null leafs
     then progress NoProgress (Applicable (NoRuleRemovalProof p))
     else progress (Progress $ mkproof leafs) (Applicable (RuleRemovalProof p leafs))
   where
-    mkproof leafs = let prob' = removeRules leafs prob in prob'{_timebounds = TB.addLeafCost (_timebounds prob') (length leafs)}
+    mkproof leafs = let prob' = removeRules leafs prob in prob'{timebounds_ = TB.addLeafCost (timebounds_ prob') (length leafs)}
     p         = LeafRules
     isLeave gr n = Gr.indeg gr n > 0 && Gr.outdeg gr n == 0
     solveLeafRule gr leafs =
@@ -286,10 +286,10 @@ solveUnsatPaths prob = do
     then progress NoProgress (Applicable NoPathRemovalProof)
     else progress (Progress (mkprob unsats)) (Applicable (PathRemovalProof unsats))
   where
-    tgraph = _tgraph prob
-    irules = _irules prob
+    tgraph = tgraph_ prob
+    irules = irules_ prob
 
-    mkprob es = prob {_tgraph = Gr.delEdges es tgraph}
+    mkprob es = prob {tgraph_ = Gr.delEdges es tgraph}
     solveUnsatPath (n1,n2) = case chain (irules IM.! n1) (irules IM.! n2) of
       Nothing -> return False
       Just r  -> testUnsatRule r
@@ -329,11 +329,11 @@ solveArgumentFilter prob (ArgumentFilter as)
   | otherwise = progress (Progress nprob) (Applicable (ArgumentFilterProof as))
   where
     nprob = prob
-      { _irules          = IM.map afOnRule (_irules prob)
-      , _startterm       = afOnTerm (_startterm prob)
-      , _rvgraph         = Nothing
-      , _sizebounds      = Nothing
-      , _localSizebounds = Nothing }
+      { irules_          = IM.map afOnRule (irules_ prob)
+      , startterm_       = afOnTerm (startterm_ prob)
+      , rvgraph_         = Nothing
+      , sizebounds_      = Nothing
+      , localSizebounds_ = Nothing }
     afOnRule (Rule l r cs) = Rule (afOnTerm l) (map afOnTerm r) cs
     afOnTerm (Term fs ars) = Term fs (fst . unzip . filter ((`notElem` as) . snd) $ zip ars [0..])
 
@@ -341,7 +341,7 @@ solveArgumentFilter prob (ArgumentFilter as)
 unusedFilter :: Its -> [Int]
 unusedFilter prob = indices $ foldr (S.union . unusedR) S.empty allrules
   where
-    allrules = IM.elems (_irules prob)
+    allrules = IM.elems (irules_ prob)
     indices vs = fst . unzip . filter ((`S.member` unused) . snd) $ zip [0..] (domain prob)
       where unused = S.fromList (domain prob) `S.difference` vs
     unusedR r = foldr (S.union . S.fromList . P.variables) S.empty (celems $ con r)

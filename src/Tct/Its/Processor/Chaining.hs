@@ -62,8 +62,8 @@ instance T.Processor ChainProcessor where
 chainOne :: Its -> RuleId -> Maybe (Its, ChainProof)
 chainOne prob r = do
   let
-    succs  = map fst (TG.successors (_tgraph prob) r)
-    irules = _irules prob
+    succs  = map fst (TG.successors (tgraph_ prob) r)
+    irules = irules_ prob
     rrule  = irules IM.! r
   msuccs <- if r `elem` succs then Nothing else Just succs
   nrules <- forM msuccs (chain rrule . (irules IM.!))
@@ -73,12 +73,12 @@ chainOne prob r = do
     ris = fst (unzip nirules)
     newrules = IM.union (IM.fromList nirules) (IM.delete r irules)
     nprob = prob
-      { _irules          = newrules
-      , _tgraph          = TG.estimateGraph newrules
-      , _timebounds      = TB.bridge (_timebounds prob) r (zip msuccs ris)
-      , _localSizebounds = Nothing
-      , _rvgraph         = Nothing
-      , _sizebounds      = Nothing }
+      { irules_          = newrules
+      , tgraph_          = TG.estimateGraph newrules
+      , timebounds_      = TB.bridge (timebounds_ prob) r (zip msuccs ris)
+      , localSizebounds_ = Nothing
+      , rvgraph_         = Nothing
+      , sizebounds_      = Nothing }
   return (nprob, ChainProof r ris)
 
 
@@ -89,12 +89,12 @@ chainingCandidates :: (Its -> RuleId -> Bool) -> Its -> [RuleId] -> [RuleId]
 chainingCandidates f prob = filter (f prob)
 
 isUnknown :: Its -> RuleId -> Bool
-isUnknown prob = (`elem` TB.nonDefined (_timebounds prob))
+isUnknown prob = (`elem` TB.nonDefined (timebounds_ prob))
 
 maxCost :: Int -> Its -> RuleId -> Bool
-maxCost n prob r = TB.tcostOf (_timebounds prob) r <=  n
+maxCost n prob r = TB.tcostOf (timebounds_ prob) r <=  n
 
 -- FIXME: we should compute out wrt to the function symbol not the rule
 maxOuts :: Int -> Its -> RuleId -> Bool
-maxOuts n prob r = null $ drop n (TG.successors (_tgraph prob) r)
+maxOuts n prob r = null $ drop n (TG.successors (tgraph_ prob) r)
 

@@ -48,38 +48,38 @@ import           Tct.Its.Data.Types
 
 
 data Its = Its
-  { _irules          :: Rules
-  , _signature       :: Signature
-  , _startterm       :: Term
+  { irules_          :: Rules
+  , signature_       :: Signature
+  , startterm_       :: Term
 
-  , _tgraph          :: TGraph
-  , _rvgraph         :: Maybe RVGraph
+  , tgraph_          :: TGraph
+  , rvgraph_         :: Maybe RVGraph
 
-  , _timebounds      :: Timebounds
-  , _sizebounds      :: Maybe Sizebounds
-  , _localSizebounds :: Maybe LocalSizebounds
+  , timebounds_      :: Timebounds
+  , sizebounds_      :: Maybe Sizebounds
+  , localSizebounds_ :: Maybe LocalSizebounds
   } deriving (Show, Typeable)
 
 type ItsStrategy    = T.Strategy Its Its
 type ItsDeclaration = T.StrategyDeclaration Its Its
 
 sizeIsDefined :: Its -> Bool
-sizeIsDefined prob = isJust (_rvgraph prob) && isJust (_sizebounds prob) && isJust (_localSizebounds prob)
+sizeIsDefined prob = isJust (rvgraph_ prob) && isJust (sizebounds_ prob) && isJust (localSizebounds_ prob)
 
 
 initialise :: ([Fun], [Var], [Rule]) -> Its
 initialise ([fs],_, rsl) = Its
-  { _irules          = allRules
-  , _signature       = mkSignature
+  { irules_          = allRules
+  , signature_       = mkSignature
 
-  , _startterm       = Term fs (args $ lhs start)
+  , startterm_       = Term fs (args $ lhs start)
 
-  , _tgraph          = tgraph
-  , _rvgraph         = Nothing
+  , tgraph_          = tgraph
+  , rvgraph_         = Nothing
 
-  , _timebounds      = TB.initialise (IM.keys allRules) (IM.keys startRules)
-  , _sizebounds      = Nothing
-  , _localSizebounds = Nothing }
+  , timebounds_      = TB.initialise (IM.keys allRules) (IM.keys startRules)
+  , sizebounds_      = Nothing
+  , localSizebounds_ = Nothing }
   where
     allRules   = IM.fromList $ zip [0..] rsl
     startRules = IM.filter (\r -> fun (lhs r) == fs) allRules
@@ -90,12 +90,12 @@ initialise ([fs],_, rsl) = Its
 initialise _ = error "Problem.initialise: not implemented: multiple start symbols"
 
 startrules :: Its -> Rules
-startrules prob = IM.filter (\r -> fun (lhs r) == fs) (_irules prob)
-  where Term fs _ = _startterm prob
+startrules prob = IM.filter (\r -> fun (lhs r) == fs) (irules_ prob)
+  where Term fs _ = startterm_ prob
 
 
 validate :: Its -> Bool
-validate prob = all validRule $ IM.elems (_irules prob)
+validate prob = all validRule $ IM.elems (irules_ prob)
   where
     validRule ru = case rhs ru of
       [r] -> all P.isLinear (args r)
@@ -103,23 +103,23 @@ validate prob = all validRule $ IM.elems (_irules prob)
 
 removeRules :: [RuleId] -> Its -> Its
 removeRules irs prob = prob
-  { _irules          = IM.filterWithKey (\k _ -> k `notElem` irs) (_irules prob)
-  , _tgraph          = TG.deleteNodes irs (_tgraph prob)
+  { irules_          = IM.filterWithKey (\k _ -> k `notElem` irs) (irules_ prob)
+  , tgraph_          = TG.deleteNodes irs (tgraph_ prob)
   -- MS: TODO filter wrt to labels
-  , _rvgraph         = Nothing
-  , _timebounds      = TB.filterRules (`notElem` irs) (_timebounds prob)
-  , _sizebounds      = M.filterWithKey (\rv _ -> rvRule rv `notElem` irs) `fmap` _sizebounds prob
-  , _localSizebounds = M.filterWithKey (\rv _ -> rvRule rv `notElem` irs) `fmap` _localSizebounds prob }
+  , rvgraph_         = Nothing
+  , timebounds_      = TB.filterRules (`notElem` irs) (timebounds_ prob)
+  , sizebounds_      = M.filterWithKey (\rv _ -> rvRule rv `notElem` irs) `fmap` sizebounds_ prob
+  , localSizebounds_ = M.filterWithKey (\rv _ -> rvRule rv `notElem` irs) `fmap` localSizebounds_ prob }
 
 restrictRules :: [RuleId] -> Its -> Its
 restrictRules irs prob = prob
-  { _irules          = IM.filterWithKey (\k _ -> k `elem` irs) (_irules prob)
-  , _tgraph          = TG.restrictToNodes irs (_tgraph prob)
+  { irules_          = IM.filterWithKey (\k _ -> k `elem` irs) (irules_ prob)
+  , tgraph_          = TG.restrictToNodes irs (tgraph_ prob)
   -- MS: TODO restrict to labels
-  , _rvgraph         = Nothing
-  , _timebounds      = TB.filterRules (`elem` irs) (_timebounds prob)
-  , _sizebounds      = M.filterWithKey (\rv _ -> rvRule rv `elem` irs) `fmap` _sizebounds prob
-  , _localSizebounds = M.filterWithKey (\rv _ -> rvRule rv `elem` irs) `fmap` _localSizebounds prob }
+  , rvgraph_         = Nothing
+  , timebounds_      = TB.filterRules (`elem` irs) (timebounds_ prob)
+  , sizebounds_      = M.filterWithKey (\rv _ -> rvRule rv `elem` irs) `fmap` sizebounds_ prob
+  , localSizebounds_ = M.filterWithKey (\rv _ -> rvRule rv `elem` irs) `fmap` localSizebounds_ prob }
 
 {-rvss :: Vars -> Rules -> [RV]-}
 {-rvss vs = concatMap k-}
@@ -127,11 +127,11 @@ restrictRules irs prob = prob
 
 -- | returns the domain; which is fixed for a problem
 domain :: Its -> Vars
-domain = concatMap P.variables . args . _startterm
+domain = concatMap P.variables . args . startterm_
 
 
 isClosed :: Its -> Bool
-isClosed = TB.allDefined . _timebounds
+isClosed = TB.allDefined . timebounds_
 
 
 data Progress a = Progress a | NoProgress
@@ -146,7 +146,7 @@ progress NoProgress proof       = T.abortWith proof
 
 closedProof :: (T.Processor p, T.Forking p ~ T.Optional a, T.ProofObject p ~ ApplicationProof p1) => Its -> T.TctM (T.Return p)
 closedProof prob = T.succeedWith Closed (const $ T.timeUBCert b) T.Null
-  where b = toComplexity $ TB.totalBound (_timebounds prob)
+  where b = toComplexity $ TB.totalBound (timebounds_ prob)
 
 ppRules :: Rules -> TB.Timebounds -> PP.Doc
 ppRules rs tb =
@@ -165,17 +165,17 @@ ppRules rs tb =
 
 
 hasProgress :: Its -> TB.TimeboundsMap -> Bool
-hasProgress prob = TB.hasProgress (_timebounds prob)
+hasProgress prob = TB.hasProgress (timebounds_ prob)
 
 updateTimebounds :: Its -> TB.TimeboundsMap -> Its
-updateTimebounds prob tb = prob { _timebounds = TB.updates (_timebounds prob) tb }
+updateTimebounds prob tb = prob { timebounds_ = TB.updates (timebounds_ prob) tb }
 
 instance PP.Pretty Its where
   pretty prob =
-    pp "Rules:" (ppRules (_irules prob) (_timebounds prob))
-    PP.<$$> pp "Signature:" (PP.pretty $ _signature prob)
-    PP.<$$> pp "Flow Graph:" (PP.pretty (_tgraph prob))
-    --PP.<$$> pp "Sizebounds:" (PP.pretty (_sizebounds prob))
+    pp "Rules:" (ppRules (irules_ prob) (timebounds_ prob))
+    PP.<$$> pp "Signature:" (PP.pretty $ signature_ prob)
+    PP.<$$> pp "Flow Graph:" (PP.pretty (tgraph_ prob))
+    --PP.<$$> pp "Sizebounds:" (PP.pretty (sizebounds_ prob))
     where pp st p = PP.text st PP.<$$> PP.indent 2 p
 
 instance Xml.Xml Its where

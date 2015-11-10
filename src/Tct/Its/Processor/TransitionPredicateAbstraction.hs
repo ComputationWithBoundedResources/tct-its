@@ -114,7 +114,7 @@ instance T.Processor TransitionAbstraction where
   execute p prob = do
     edges <- liftIO $ lfp abstract transform initials transitions
     let
-      fresh = let m = maximum (IM.keys $ _irules prob) in [m..]
+      fresh = let m = maximum (IM.keys $ irules_ prob) in [m..]
       lns   = (\(_,_,z) -> z) (unzip3 edges)
 
       irules = IM.fromList $ zip fresh (S.toList $ S.fromList lns)
@@ -122,14 +122,14 @@ instance T.Processor TransitionAbstraction where
       -- TODO: generalise probleminitialisation
       nprob = case partial p of
         Nothing -> prob
-          { _irules          = irules
-          , _tgraph          = TG.estimateGraph irules
-          , _rvgraph         = Nothing
-          , _timebounds      =
+          { irules_          = irules
+          , tgraph_          = TG.estimateGraph irules
+          , rvgraph_         = Nothing
+          , timebounds_      =
               TB.initialise (IM.keys irules) (IM.keys $ IM.filter (\r -> fun (lhs r) == sfun ) irules)
-          , _sizebounds      = Nothing
-          , _localSizebounds = Nothing }
-          where sfun = fun (_startterm prob)
+          , sizebounds_      = Nothing
+          , localSizebounds_ = Nothing }
+          where sfun = fun (startterm_ prob)
         Just _ -> undefined
       proof = ReplacementProof
 
@@ -138,10 +138,10 @@ instance T.Processor TransitionAbstraction where
         abstract  = abstractWith (predicates p)
         transform = transformWith (predicates p)
         initials  = case partial p of
-          Nothing -> rules (_irules prob)
+          Nothing -> rules (irules_ prob)
           Just _ -> undefined
         transitions = case partial p of
-          Nothing -> rules (_irules prob)
+          Nothing -> rules (irules_ prob)
           Just _ -> undefined
 
 
