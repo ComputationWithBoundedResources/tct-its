@@ -62,7 +62,6 @@ module Tct.Its.Processor.PolyRank
   ) where
 
 import           Control.Monad                       (liftM)
-import           Control.Monad.Error                 (throwError)
 import           Control.Monad.Trans                 (liftIO)
 import qualified Data.List                           as L (partition, intersect, subsequences)
 import           Data.Maybe                          (fromMaybe)
@@ -71,6 +70,7 @@ import qualified Data.IntMap.Strict                     as IM
 import qualified Data.Set as S 
 import qualified Data.Traversable                    as T (mapM)
 
+import           Tct.Core.Common.Error               (throwError)
 import qualified Tct.Core.Common.Pretty              as PP
 import qualified Tct.Core.Common.Xml                 as Xml
 import qualified Tct.Core.Data                       as T
@@ -81,7 +81,6 @@ import qualified Tct.Common.PolynomialInterpretation as PI
 import           Tct.Common.Ring
 import qualified Tct.Common.SMT as SMT
 
-import           Tct.Its.Data
 import qualified Tct.Its.Data.Complexity             as C
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.Rule

@@ -2,34 +2,30 @@ module Tct.Its.Config
   ( fromFile
   , fromString
 
+  , runIts
   , ItsConfig
   , itsConfig
-  , its
   ) where
 
 
 import           Control.Monad          (void)
 
-import           Tct.Core               (addStrategies, withDefaultStrategy)
+import           Tct.Core
 import qualified Tct.Core.Common.Parser as PR
-import qualified Tct.Core.Data          as T
-import qualified Tct.Core.Main          as T
 
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.Rule
-import           Tct.Its.Strategy
+import           Tct.Its.Strategies     (runtime)
 
 
-type ItsConfig = T.TctConfig Its
+type ItsConfig = TctConfig Its
 
 itsConfig :: ItsConfig
-itsConfig = T.defaultTctConfig fromFile
+itsConfig = defaultTctConfig fromFile
   `withDefaultStrategy` runtime
-  `addStrategies`
-    [ T.SD runtimeDeclaration ]
 
-its :: ItsConfig -> IO ()
-its = T.tct3
+runIts :: Declared Its Its => ItsConfig -> IO ()
+runIts = runTct
 
 --- parse
 

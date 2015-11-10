@@ -41,7 +41,6 @@ import qualified Data.IntMap.Strict           as IM
 import qualified Data.Set                     as S
 import qualified Data.Traversable             as F
 
-import qualified Tct.Core.Common.Parser       as CP
 import qualified Tct.Core.Common.Pretty       as PP
 import qualified Tct.Core.Common.Xml          as Xml
 import           Tct.Core.Common.SemiRing
@@ -51,7 +50,6 @@ import           Tct.Common.ProofCombinators
 import qualified Tct.Common.Polynomial        as P
 import qualified Tct.Common.SMT as SMT
 
-import           Tct.Its.Data
 import           Tct.Its.Data.Complexity
 import           Tct.Its.Data.Problem
 import qualified Tct.Its.Data.Timebounds      as TB
@@ -388,17 +386,9 @@ argumentFilterDeclaration = T.declare "argumentFilter" [desc] (T.OneTuple $ arg)
     arg = filterArg `T.optional` Unused
     argumentFilter' = const $ T.withProblem (argumentFilter . unusedFilter)
 
-data Filter 
-  = Unused 
-  deriving Show
+data Filter = Unused 
+  deriving (Show, Enum, Bounded)
 
 filterArg :: T.Argument 'T.Required Filter
-filterArg = T.arg { T.argName = "filter" , T.argDomain = "<filter>" }  `T.withHelp` (f1:filters)
-  where
-    f1      = "Specifies the filter to apply. <filter> is one of:"
-    filters = map ("* "++)  [ show Unused ]
-
-instance T.SParsable i i Filter where
-  parseS = CP.choice
-    [ CP.symbol (show Unused) >> return Unused ]
+filterArg = T.flag "filter" ["Specifies the filter to apply."]
 

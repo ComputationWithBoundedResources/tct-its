@@ -167,6 +167,6 @@ ppLocalSizebounds vars lbounds = ppRVs vars (M.assocs lbounds) ppLbound
   where ppLbound (lbound, lgrowth)  = [PP.pretty lbound, PP.comma, PP.space, PP.pretty lgrowth]
   
 
-instance PP.Pretty (Vars, LocalSizebounds) where
+instance {-# OVERLAPPING #-} PP.Pretty (Vars, LocalSizebounds) where
   pretty = uncurry ppLocalSizebounds
 

@@ -1,24 +1,43 @@
 {-# LANGUAGE ImplicitParams #-}
-module Tct.Its.Strategy
+module Tct.Its.Strategies
   (
-  runtime
+  itsDeclarations
+  , runtime
   , runtime'
   , runtimeDeclaration
+  , module Tct.Its.Processors
   ) where
 
-import qualified Data.IntMap.Strict as IM
 
 import           Tct.Core
 import qualified Tct.Core.Data      as T
 
-import           Tct.Its
-import           Tct.Its.Data
-import           Tct.Its.Processor
+import           Tct.Its.Data.Selector
+import           Tct.Its.Data.Problem
+import           Tct.Its.Processors
+
+
+itsDeclarations :: [StrategyDeclaration Its Its]
+itsDeclarations = [
+  SD emptyDeclaration
+  , SD farkasDeclaration
+  , SD knowledgePropagationDeclaration
+  , SD leafRulesDeclaration
+  , SD pathAnalysisDeclaration
+  , SD polyDeclaration
+  , SD sizeboundsDeclaration
+  , SD unreachableRulesDeclaration
+  , SD unsatRulesDeclaration
+  ]
 
 runtimeDeclaration :: T.Declaration ('[Argument 'Optional Bool, Argument 'Optional Bool] T.:-> ItsStrategy)
 runtimeDeclaration = strategy "runtime" (atarg, afarg) def where
-  atarg = bool `withName` "useTransitionAbstraction" `optional` False
-  afarg = bool `withName` "useArgumentFilter"        `optional` False
+  atarg = bool "useTransitionAbstraction" ["Wether predicate abstraction should be used."] `optional` False
+  afarg = bool "useArgumentFilter" ["Wether argument filtering should be used."] `optional` False
+
+wellformed :: ItsStrategy
+wellformed = withProblem $ \prob -> 
+  when (validate prob) (failing "Problem is not well-fomed.")
 
 runtime :: ItsStrategy
 runtime  = T.deflFun runtimeDeclaration
@@ -54,9 +73,6 @@ def useAT useAF =
       \prob -> es $ fastestN 8 [ withKnowledgePropagation (timebounds c) | c <- timeboundsCandidates (selNextSCC prob) ]
 
 
-wellformed :: ItsStrategy
-wellformed = withProblem
-  $ \prob -> if validate (IM.elems $ _irules prob) then identity else abort
 
 -- FIXME: boundtrivialsccs is not always 1 in the recursive case; take max label
 simpl1 :: ItsStrategy

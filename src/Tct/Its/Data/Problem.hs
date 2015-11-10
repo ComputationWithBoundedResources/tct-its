@@ -1,5 +1,7 @@
 module Tct.Its.Data.Problem
   ( Its (..)
+  , ItsStrategy
+  , ItsDeclaration
 
   , initialise
   , removeRules
@@ -58,6 +60,9 @@ data Its = Its
   , _localSizebounds :: Maybe LocalSizebounds
   } deriving (Show, Typeable)
 
+type ItsStrategy    = T.Strategy Its Its
+type ItsDeclaration = T.StrategyDeclaration Its Its
+
 sizeIsDefined :: Its -> Bool
 sizeIsDefined prob = isJust (_rvgraph prob) && isJust (_sizebounds prob) && isJust (_localSizebounds prob)
 
@@ -89,8 +94,8 @@ startrules prob = IM.filter (\r -> fun (lhs r) == fs) (_irules prob)
   where Term fs _ = _startterm prob
 
 
-validate :: [Rule] -> Bool
-validate = all validRule
+validate :: Its -> Bool
+validate prob = all validRule $ IM.elems (_irules prob)
   where
     validRule ru = case rhs ru of
       [r] -> all P.isLinear (args r)

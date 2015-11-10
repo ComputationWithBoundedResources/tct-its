@@ -1,5 +1,5 @@
 Name:          tct-its
-Version:       3.0.0
+Version:       3.1.0
 Author:
   Georg Moser, Michael Schaper
 Maintainer:
@@ -36,9 +36,9 @@ Executable tct-its
     parsec           == 3.1.*,
 
     slogic           == 0.*,
-    tct-common       == 3.0.*,
-    tct-core         == 3.0.*,
-    tct-its          == 3.0.*
+    tct-common       == 3.1.*,
+    tct-core         == 3.1.*,
+    tct-its          == 3.1.*
 
   extensions: 
     ConstraintKinds,
@@ -48,8 +48,7 @@ Executable tct-its
     GeneralizedNewtypeDeriving,
     MultiParamTypeClasses, 
     TypeFamilies,
-    TypeOperators,
-    OverlappingInstances
+    TypeOperators
 
   ghc-options:
     -Wall -threaded -fno-warn-orphans -fno-spec-constr-count -rtsopts -with-rtsopts=-N
@@ -60,7 +59,6 @@ Library
   exposed-modules:
     Tct.Its
     Tct.Its.Config
-    Tct.Its.Data
     Tct.Its.Data.Bounds
     Tct.Its.Data.Complexity
     Tct.Its.Data.LocalSizebounds
@@ -73,7 +71,7 @@ Library
     Tct.Its.Data.TransitionAbstraction
     Tct.Its.Data.TransitionGraph
     Tct.Its.Data.Types
-    Tct.Its.Processor
+    Tct.Its.Processors
     Tct.Its.Processor.Chaining
     Tct.Its.Processor.Empty
     Tct.Its.Processor.PathAnalysis
@@ -81,7 +79,7 @@ Library
     Tct.Its.Processor.PolyRank
     Tct.Its.Processor.Simplification
     Tct.Its.Processor.Sizebounds
-    Tct.Its.Strategy
+    Tct.Its.Strategies
   build-depends:
     containers       >= 0.5 && < 0.6,
     mtl              >= 2.1 && < 2.3,
@@ -91,8 +89,8 @@ Library
     parsec           == 3.1.*,
 
     slogic           == 0.*,
-    tct-common       == 3.0.*,
-    tct-core         == 3.0.*
+    tct-common       == 3.1.*,
+    tct-core         == 3.1.*
     
   ghc-options:
     -Wall -fno-warn-orphans -fno-spec-constr-count -rtsopts -with-rtsopts=-N
@@ -100,10 +98,10 @@ Library
     ConstraintKinds,
     DataKinds,
     DeriveDataTypeable,
+    FlexibleContexts,
     FlexibleInstances,
     GeneralizedNewtypeDeriving,
     MultiParamTypeClasses, 
     TypeFamilies,
-    TypeOperators,
-    OverlappingInstances
+    TypeOperators
 

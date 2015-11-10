@@ -16,7 +16,6 @@ import qualified Tct.Core.Data as T
 
 import           Tct.Common.ProofCombinators
 
-import           Tct.Its.Data
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.LocalSizebounds     (LocalSizebounds)
 import qualified Tct.Its.Data.LocalSizebounds     as LB (compute)

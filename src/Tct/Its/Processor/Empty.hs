@@ -5,7 +5,6 @@ import qualified Tct.Core.Common.Pretty  as PP
 import qualified Tct.Core.Common.Xml     as Xml
 import qualified Tct.Core.Data           as T
 
-import           Tct.Its.Data
 import           Tct.Its.Data.Complexity (toComplexity)
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.Timebounds (totalBound)

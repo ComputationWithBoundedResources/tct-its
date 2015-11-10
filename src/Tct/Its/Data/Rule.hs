@@ -147,7 +147,7 @@ ppTerms ts  = PP.char 'c' PP.<> PP.int (length ts) PP.<> PP.tupled (map ppTerm t
 instance PP.Pretty Term where
   pretty = ppTerm
 
-instance PP.Pretty [Term] where
+instance {-# OVERLAPPING #-} PP.Pretty [Term] where
   pretty = ppTerms
 
 
@@ -162,7 +162,7 @@ instance PP.Pretty Atom where
   pretty (Eq t1 t2)  = ppBinop t1 "=" t2
   pretty (Gte t1 t2) = ppBinop t1 ">=" t2
 
-instance PP.Pretty [Atom] where
+instance {-# OVERLAPPING #-} PP.Pretty [Atom] where
   pretty = ppAtoms
 
 

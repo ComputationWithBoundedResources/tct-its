@@ -1,9 +1,10 @@
 module Main (main) where
 
+import Tct.Core
+import Tct.Its
 
-import Tct.Its.Config (its, itsConfig)
-
+instance Declared Its Its where decls = itsDeclarations
 
 main :: IO ()
-main = its itsConfig
+main = runIts itsConfig
 
