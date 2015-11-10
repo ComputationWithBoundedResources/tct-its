@@ -4,13 +4,13 @@ packages:
 
 - location:
     git: git@github.com:ComputationWithBoundedResources/slogic
-    commit: 1f9c923a4d55ea700aa98a83d99836a3c419385b
+    commit: 54beea4baf8f2ad1f02d86b4319512b6e70ab4a2
 - location:
     git: git@github.com:ComputationWithBoundedResources/tct-core
-    commit: 9d0a9d1afda4724bb167bf3ddc82b91d27ddfe7b
+    commit: cfe3ad6b9062c2fdf397734d69c263920f99165e
 - location:
     git: git@github.com:ComputationWithBoundedResources/tct-common
-    commit: 27a23e33d00552821141cf2a46654df7ec4559b5
+    commit: b88ce5394cb9a7dde6d3a08a0a15391991e36ed5
 extra-deps:
 - fgl-visualize-0.1.0.1
 - dotgen-0.4.2
