@@ -37,7 +37,7 @@ runtimeDeclaration = strategy "runtime" (atarg, afarg) def where
 
 wellformed :: ItsStrategy
 wellformed = withProblem $ \prob -> 
-  when (validate prob) (failing "Problem is not well-fomed.")
+  when (not $ validate prob) (failing "Problem is not well-fomed.")
 
 runtime :: ItsStrategy
 runtime  = T.deflFun runtimeDeclaration
