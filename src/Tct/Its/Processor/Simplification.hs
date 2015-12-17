@@ -35,7 +35,6 @@ module Tct.Its.Processor.Simplification
 
 
 import           Control.Monad
-import           Control.Monad.Trans          (liftIO)
 import qualified Data.Graph.Inductive         as Gr
 import qualified Data.IntMap.Strict           as IM
 import qualified Data.Set                     as S
@@ -206,7 +205,7 @@ instance T.Processor RuleRemovalProcessor where
 
 solveUnsatRules :: Its -> T.TctM (T.Return RuleRemovalProcessor)
 solveUnsatRules prob = do
-  unsats <- liftIO $ do
+  unsats <- do
     res <- F.sequence $ IM.map testUnsatRule nrules
     return . IM.keys $ IM.filter id res
   if null unsats
@@ -217,7 +216,7 @@ solveUnsatRules prob = do
     nrules     = IM.filterWithKey (\k _ -> k `elem` nonDefined) (irules_ prob)
     nonDefined = TB.nonDefined (timebounds_ prob)
 
-testUnsatRule :: Rule -> IO Bool
+testUnsatRule :: Rule -> T.TctM Bool
 testUnsatRule r = do
   s :: SMT.Result () <- SMT.smtSolveSt SMT.yices $ do
     SMT.setLogic SMT.QF_LIA
@@ -281,7 +280,7 @@ instance T.Processor PathRemovalProcessor where
 
 solveUnsatPaths :: Its -> T.TctM (T.Return PathRemovalProcessor)
 solveUnsatPaths prob = do
-  unsats <- liftIO $ filterM solveUnsatPath (Gr.edges tgraph)
+  unsats <- filterM solveUnsatPath (Gr.edges tgraph)
   if null unsats
     then progress NoProgress (Applicable NoPathRemovalProof)
     else progress (Progress (mkprob unsats)) (Applicable (PathRemovalProof unsats))

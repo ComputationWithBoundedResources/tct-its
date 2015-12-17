@@ -5,7 +5,6 @@ module Tct.Its.Processor.Sizebounds
   ) where
 
 
-import           Control.Monad.Trans              (liftIO)
 --import qualified Data.Graph.Inductive.Dot         as Gr
 import           Data.Maybe                       (fromMaybe)
 
@@ -32,7 +31,7 @@ localSizebound :: ItsStrategy
 localSizebound = T.Apply LocalSizeboundsProc
 
 -- | Sets localSizebounds, rvgraph, sizebounds if not already defined.
-initialiseSizebounds :: Its -> IO Its
+initialiseSizebounds :: Its -> T.TctM Its
 initialiseSizebounds prob = case localSizebounds_ prob of
   Just _ ->  return prob
   Nothing -> newprob
@@ -70,7 +69,7 @@ instance T.Processor LocalSizeboundsProcessor where
 
   execute LocalSizeboundsProc prob | isClosed prob = closedProof prob
   execute LocalSizeboundsProc prob = do
-    nprob <- liftIO $ initialiseSizebounds prob
+    nprob <- initialiseSizebounds prob
     let pproof = LocalSizeboundsProof (domain prob, error "proc sizeb" `fromMaybe` localSizebounds_ nprob) (error "proc rv" `fromMaybe` rvgraph_ nprob)
     if localSizebounds_ prob /= localSizebounds_ nprob
       then progress (Progress nprob) (Applicable pproof)

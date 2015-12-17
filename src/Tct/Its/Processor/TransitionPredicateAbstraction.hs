@@ -8,7 +8,6 @@ module Tct.Its.Processor.TransitionPredicateAbstraction
   ) where
 
 
-import           Control.Monad.Trans                (liftIO)
 import qualified Data.IntMap                        as IM
 import qualified Data.Set                           as S
 
@@ -51,7 +50,7 @@ postify r1@(Rule l [r] _) = Rule (lhs r2) [r'] cs
     cs = con r2 ++ zipWith Eq (args r') (args . head $ rhs r2)
 postify _ = error "contains nested recursion"
 
-abstractWith :: Predicates -> Abstraction IO Rule Rule
+abstractWith :: Predicates -> Abstraction T.TctM Rule Rule
 abstractWith ps r1@(Rule _ [_] _) =
   renameWith toVar . Rule (lhs r2) (rhs r2) <$> valids ps
   where
@@ -88,7 +87,7 @@ abstractWith ps r1@(Rule _ [_] _) =
       return $ SMT.isSat res
 abstractWith _ _ = error "constains nested recursion"
 
-transformWith :: Predicates -> Transformer IO Rule Rule
+transformWith :: Predicates -> Transformer T.TctM Rule Rule
 transformWith ps r1 r = do
   rM <- testUnsatRuleM (chain r1 r)
   case rM of
@@ -112,7 +111,7 @@ instance T.Processor TransitionAbstraction where
   type Forking TransitionAbstraction     = T.Optional T.Id
 
   execute p prob = do
-    edges <- liftIO $ lfp abstract transform initials transitions
+    edges <- lfp abstract transform initials transitions
     let
       fresh = let m = maximum (IM.keys $ irules_ prob) in [m..]
       lns   = (\(_,_,z) -> z) (unzip3 edges)

@@ -27,6 +27,7 @@ import Data.List (intersect)
 import qualified Data.Set as S
 import qualified Data.List as L (partition)
 
+import           Tct.Core.Data (TctM)
 import qualified Tct.Core.Common.Pretty     as PP
 import qualified Tct.Common.Polynomial as P
 import           Tct.Common.Ring
@@ -58,11 +59,11 @@ lgrowthOf lbounds rv = snd (error err `fromMaybe` M.lookup rv lbounds)
   where err = "Tct.Its.Data.LocalSizebounds.lgrowthOf: key '" ++ show rv ++ "' not defined."
 
 
-compute :: Vars -> Rules -> IO LocalSizebounds
+compute :: Vars -> Rules -> TctM LocalSizebounds
 compute vs rs = M.unions `liftM` sequence (IM.foldrWithKey k [] rs)
   where k i r acc = computeRule vs (i,r) : acc
 
-computeRule :: Vars -> (RuleId, Rule) -> IO LocalSizebounds
+computeRule :: Vars -> (RuleId, Rule) -> TctM LocalSizebounds
 computeRule vs ir = M.fromList `liftM` mapM k (rvss vs ir)
   where k (rv,rpoly,cpolys) = computeVar vs rpoly cpolys >>= \c -> return (rv,c)
 
@@ -72,7 +73,7 @@ rvss vs (ruleIdx, Rule _ rs cs) =
     | (rhsIdx, r) <- zip [0..] rs, (v, rpoly) <- zip vs (args r) ]
   where cs' = [ P.mapCoefficients SMT.num p | Gte p _ <- filterLinear (toGte cs) ]
 
-computeVar :: Vars -> IPoly -> [APoly] -> IO (Complexity, Growth)
+computeVar :: Vars -> IPoly -> [APoly] -> TctM (Complexity, Growth)
 computeVar vs rpoly cpolys = fromMaybe (error "computeVar") `liftM` foldl1 liftMPlus
   [ 
   -- direct
@@ -114,14 +115,14 @@ instance (SMT.Decode m c a, Additive a, Eq a)
   => SMT.Decode m (P.PView c Var) (P.Polynomial a Var) where
   decode = P.fromViewWithM SMT.decode
 
-entscheide :: IPolyV -> IPoly -> [APoly] -> IO (Maybe (Complexity, Growth))
+entscheide :: IPolyV -> IPoly -> [APoly] -> TctM (Maybe (Complexity, Growth))
 entscheide lview rpoly cpolys = do
   res <- entscheide' lview rpoly cpolys
   return $ case res of
     SMT.Sat (lp,ap) -> let r = poly lp `maximal` poly ap in Just (r,growth r)
     _               -> Nothing
 
-entscheide' :: IPolyV -> IPoly -> [APoly] -> IO (SMT.Result (IPoly,IPoly))
+entscheide' :: IPolyV -> IPoly -> [APoly] -> TctM (SMT.Result (IPoly,IPoly))
 entscheide' lview rpoly cpolys = do
   res :: SMT.Result (IPoly,IPoly) <- SMT.smtSolveSt SMT.yices $ do
     SMT.setLogic SMT.QF_LIA

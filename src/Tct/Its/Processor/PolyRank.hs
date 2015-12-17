@@ -62,7 +62,6 @@ module Tct.Its.Processor.PolyRank
   ) where
 
 import           Control.Monad                       (liftM)
-import           Control.Monad.Trans                 (liftIO)
 import qualified Data.List                           as L (partition, intersect, subsequences)
 import           Data.Maybe                          (fromMaybe)
 import qualified Data.Map.Strict                     as M
@@ -193,7 +192,7 @@ instance T.Processor PolyRankProcessor where
     | not (null $ withSizebounds p) && not (sizeIsDefined prob) 
         = progress NoProgress (Inapplicable "Sizebounds not initialised.")
     | otherwise = do
-        res  <- liftIO $ entscheide p prob
+        res  <- entscheide p prob
         uncurry (progress) =<< case res of
           SMT.Sat order -> 
             -- MS: for the timebounds processor we do not enforce that the predecessor of strictcomponents is defined
@@ -212,7 +211,7 @@ find :: (Ord k, Show k) => M.Map k a -> k -> a
 find m k = error err `fromMaybe` M.lookup k m
   where err = "Tct.Its.Processor.PolyRank: key " ++ show k ++ " not found."
 
-entscheide :: PolyRankProcessor -> Its -> IO (SMT.Result PolyOrder)
+entscheide :: PolyRankProcessor -> Its -> T.TctM (SMT.Result PolyOrder)
 entscheide proc prob@(Its
   { startterm_       = startterm
   , tgraph_          = tgraph
@@ -222,7 +221,7 @@ entscheide proc prob@(Its
   let 
     solver 
       | useFarkas proc = SMT.yices
-      | otherwise      = SMT.minismt' Nothing Nothing ["-m","-ib", "-1"]
+      | otherwise      = SMT.minismt' Nothing ["-m","-ib", "-1"]
   res :: SMT.Result (M.Map Coefficient (Maybe Int), M.Map Strict Int) <- SMT.smtSolveSt solver $ do 
     SMT.setLogic $ if useFarkas proc then SMT.QF_LIA else SMT.QF_NIA
     -- TODO: memoisation is here not used
