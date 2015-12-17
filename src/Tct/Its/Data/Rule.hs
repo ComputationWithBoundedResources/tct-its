@@ -1,4 +1,4 @@
-module Tct.Its.Data.Rule 
+module Tct.Its.Data.Rule
   (
   ATerm (..)
   , Term
@@ -9,7 +9,7 @@ module Tct.Its.Data.Rule
 
   , AAtom  (..)
   , Atom
-  , Constraint    
+  , Constraint
   , isLinear
   , filterLinear
   , toGte
@@ -111,29 +111,28 @@ variables = foldRule (\acc r -> acc `S.union` S.fromList (P.variables r)) S.empt
 
 -- | @match r1 r2@ matches the rhs of @r1@ with the lhs of @l2@.
 chain :: Rule -> Rule -> Maybe Rule
-chain ru1 ru2 
+chain ru1 ru2
   | length (rhs ru1)       /= 1 = Nothing
   | fun (head . rhs $ ru1) /= fun (lhs ru2) = Nothing
   | otherwise = Just $ chain' ru1 (rename ru1 ru2)
   where
-    chain' (Rule l1 r1 cs1) x@(Rule l2 r2 cs2) = Rule 
+    chain' (Rule l1 r1 cs1) x@(Rule l2 r2 cs2) = Rule
       { lhs = l1
       , rhs = map (mapTerm id k) r2
-      , con = cs1 ++ map (mapCon k) cs2 } 
-      where 
+      , con = cs1 ++ map (mapCon k) cs2 }
+      where
         lhsvs = concatMap P.variables (args l2)
         subst1 = M.fromList (map (\v -> (v, P.variable v)) (S.toList $ variables x))
         subst2 = foldl (\m (v,p) -> M.insert v p m) subst1 (zip lhsvs (args (head r1)))
-        k = (`P.substituteVariables` subst2) 
+        k = (`P.substituteVariables` subst2)
         mapCon f (Eq p1 p2)  = Eq (f p1) (f p2)
         mapCon f (Gte p1 p2) = Gte (f p1) (f p2)
-  
+
 
 
 -- Pretty Printing ---------------------------------------------------------------------------------------------------
-arrowSym, underSym, andSym :: String
+arrowSym, andSym :: String
 arrowSym = "->"
-underSym = ":|:"
 andSym   = "&&"
 
 
@@ -175,7 +174,7 @@ instance PP.Pretty Rule where
 
 -- Parsing -----------------------------------------------------------------------------------------------------------
 
--- prule should parse 
+-- prule should parse
 -- f(A,B) -> Com_2(f(A,C),round(A,C)) :|: A >= 1 && B + 1 = A
 
 type Parser = PR.Parsec String ()
@@ -187,13 +186,14 @@ pNat :: Parser IPoly
 pNat = P.constant <$> PR.nat
 
 pSep :: Parser ()
-pSep = void (PR.symbol "->")
+pSep = void $ PR.symbol "-" *> weights <* PR.symbol ">"
+  where weights = optional $ PR.symbol "{" *> PR.manyTill PR.anyChar (PR.symbol "}")
 
 -- constructs a polynomial over an arbitrary arithmetic expression over: int, var, *, +, -, ()
 pPoly :: Parser IPoly
 pPoly = PE.buildExpressionParser table poly PR.<?> "poly"
   where
-    poly = 
+    poly =
       PR.parens pPoly
       PR.<|> pNat
       PR.<|> pVar
@@ -208,7 +208,7 @@ pPoly = PE.buildExpressionParser table poly PR.<?> "poly"
 pTerm :: Parser Term
 pTerm = (Term <$> PR.identifier <*> PR.parens (pPoly `PR.sepBy` PR.symbol ",")) PR.<?> "term"
 
-  
+
 -- Com_nat([terms])
 pTerms :: Parser [Term]
 pTerms = do
@@ -225,8 +225,8 @@ pAtom = do
   p2 <- pPoly
   return $ p1 `op` p2
   PR.<?> "atom"
-  where 
-    bin = 
+  where
+    bin =
       [ PR.reserved "=" *> return Eq
       , PR.reserved ">=" *> return Gte
       , PR.reserved "=<" *> return (flip Gte)
@@ -234,12 +234,17 @@ pAtom = do
       , PR.reserved ">" *> return (\p1 p2 -> Gte (p1 `sub` one)  p2)
       , PR.reserved "<" *> return (\p2 p1 -> Gte (p1 `sub` one)  p2) ]
 
--- :|: a1 && a2 && ..
 pConstraint :: Parser Constraint
-pConstraint = do
-  void $ PR.try (PR.symbol underSym)
-  pAtom `PR.sepBy` PR.symbol andSym
-  PR.<|> return []
+pConstraint = PR.try pConstraint1 <|> PR.try pConstraint2 <|> return [] PR.<?> "constraint"
+
+-- [ a1 /\ a2 ... ]
+pConstraint1 :: Parser Constraint
+pConstraint1 = bracket $ pAtom `PR.sepBy` PR.symbol "/\\"
+  where bracket p = PR.symbol "[" *> p <* PR.symbol "]"
+
+-- :|: a1 && a2 && ..
+pConstraint2 :: Parser Constraint
+pConstraint2 = PR.symbol ":|:" *> pAtom `PR.sepBy` PR.symbol "&&"
 
 pRule :: Parser Rule
 pRule = (Rule <$> pTerm <*> (pSep *> (pTerms <|> (:[]) <$> pTerm)) <*> pConstraint) PR.<?> "rule"
