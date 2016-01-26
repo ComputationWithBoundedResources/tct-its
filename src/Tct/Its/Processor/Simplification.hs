@@ -31,6 +31,7 @@ module Tct.Its.Processor.Simplification
 
   -- * 
   , testUnsatRule
+  , testUnsatRule'
   ) where
 
 
@@ -42,12 +43,13 @@ import qualified Data.Traversable             as F
 
 import qualified Tct.Core.Common.Pretty       as PP
 import qualified Tct.Core.Common.Xml          as Xml
-import           Tct.Core.Common.SemiRing
 import qualified Tct.Core.Data                as T
 
 import           Tct.Common.ProofCombinators
 import qualified Tct.Common.Polynomial        as P
+import           Tct.Common.SMT ((.&&), (.>=))
 import qualified Tct.Common.SMT as SMT
+import           Tct.Common.Ring
 
 import           Tct.Its.Data.Complexity
 import           Tct.Its.Data.Problem
@@ -206,7 +208,7 @@ instance T.Processor RuleRemovalProcessor where
 solveUnsatRules :: Its -> T.TctM (T.Return RuleRemovalProcessor)
 solveUnsatRules prob = do
   unsats <- do
-    res <- F.sequence $ IM.map testUnsatRule nrules
+    res <- F.sequence $ IM.map testUnsatRule' nrules
     return . IM.keys $ IM.filter id res
   if null unsats
     then progress NoProgress (Applicable (NoRuleRemovalProof p))
@@ -217,12 +219,37 @@ solveUnsatRules prob = do
     nonDefined = TB.nonDefined (timebounds_ prob)
 
 testUnsatRule :: Rule -> T.TctM Bool
-testUnsatRule r = do
+testUnsatRule (Rule _ _ []) = return False
+testUnsatRule (Rule _ _ cs) = do
   s :: SMT.Result () <- SMT.smtSolveSt SMT.yices $ do
     SMT.setLogic SMT.QF_LIA
-    SMT.assert $ SMT.bigAnd (map encodeAtom (con r))
+    SMT.assert $ SMT.bigAnd (encodeAtom `map` cs)
     return $ SMT.decode ()
   return (SMT.isUnsat s)
+
+-- use farkas lemma: try to derive C |= 0 >= 1
+testUnsatRule' :: Rule -> T.TctM Bool
+testUnsatRule' (Rule _ _ []) = return False
+testUnsatRule' (Rule _ _ cs) = do
+  s :: SMT.Result () <- SMT.smtSolveSt SMT.yices $ do
+    let 
+      absolute p              = SMT.bigAnd [ c SMT..== zero | c <- P.coefficients p ]
+      bottom                  = P.constant (SMT.neg SMT.one)
+      eliminateFarkas ply ds1 = do
+        ds2 <- forM ds1 (\c -> P.scale <$> SMT.nvarM' <*> pure c)
+        let
+          (p1,pc1) = P.splitConstantValue ply
+          (p2,pc2) = P.splitConstantValue (bigAdd ds2)
+        return $ absolute (p1 `sub` p2) .&& (pc1 .>= pc2)
+
+
+    SMT.setLogic SMT.QF_LIA
+    SMT.assert (SMT.top :: SMT.Formula Int)
+    SMT.assertM $ eliminateFarkas bottom [ P.mapCoefficients SMT.num c | Gte c _ <- toGte cs ]
+
+    return $ SMT.decode ()
+  return $ SMT.isSat s
+  
 
 solveUnreachableRules :: Its -> T.TctM (T.Return RuleRemovalProcessor)
 solveUnreachableRules prob =
@@ -291,7 +318,7 @@ solveUnsatPaths prob = do
     mkprob es = prob {tgraph_ = Gr.delEdges es tgraph}
     solveUnsatPath (n1,n2) = case chain (irules IM.! n1) (irules IM.! n2) of
       Nothing -> return False
-      Just r  -> testUnsatRule r
+      Just r  -> testUnsatRule' r
 
 
 -- * argument filtering
@@ -379,7 +406,7 @@ argumentFilter :: [Int] -> ItsStrategy
 argumentFilter = T.Apply . ArgumentFilter
 
 argumentFilterDeclaration :: T.Declaration ('[T.Argument 'T.Optional Filter] T.:-> ItsStrategy)
-argumentFilterDeclaration = T.declare "argumentFilter" [desc] (T.OneTuple $ arg) argumentFilter'
+argumentFilterDeclaration = T.declare "argumentFilter" [desc] (T.OneTuple arg) argumentFilter'
   where
     desc = "Removes argument positions acoording to the provided argument."
     arg = filterArg `T.optional` Unused
