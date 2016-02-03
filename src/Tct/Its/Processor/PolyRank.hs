@@ -156,7 +156,7 @@ instance PP.Pretty PolyOrder where
     , PP.text ""
     , PP.text "Following rules are weakly oriented:"
     , ppOrder (PP.text "  >= ") (weak_ order) ]
-    ++ maybe [PP.empty] (ppWithSizebounds) (sbounds_ order)
+    ++ maybe [PP.empty] ppWithSizebounds (sbounds_ order)
     where
       ppWithSizebounds vsbounds = 
         [ PP.text "We use the following global sizebounds:"
@@ -193,7 +193,7 @@ instance T.Processor PolyRankProcessor where
         = progress NoProgress (Inapplicable "Sizebounds not initialised.")
     | otherwise = do
         res  <- entscheide p prob
-        uncurry (progress) =<< case res of
+        uncurry progress =<< case res of
           SMT.Sat order -> 
             -- MS: for the timebounds processor we do not enforce that the predecessor of strictcomponents is defined
             if hasProgress prob (times_ order)
@@ -201,7 +201,7 @@ instance T.Processor PolyRankProcessor where
               else return (NoProgress, Applicable (PolyRankProof Incompatible))
           -- MS: should return fail; then it is captured by ErroneousProc
           SMT.Error s   -> throwError (userError s)
-          _             -> return (NoProgress, (Applicable (PolyRankProof Incompatible)))
+          _             -> return (NoProgress, Applicable $ PolyRankProof Incompatible)
 
 
 newtype Strict = Strict { unStrict :: Int }
@@ -212,12 +212,12 @@ find m k = error err `fromMaybe` M.lookup k m
   where err = "Tct.Its.Processor.PolyRank: key " ++ show k ++ " not found."
 
 entscheide :: PolyRankProcessor -> Its -> T.TctM (SMT.Result PolyOrder)
-entscheide proc prob@(Its
+entscheide proc prob@Its
   { startterm_       = startterm
   , tgraph_          = tgraph
   , timebounds_      = tbounds
   , sizebounds_      = sizebounds
-  }) = do
+  } = do
   let 
     solver 
       | useFarkas proc = SMT.yices
@@ -237,8 +237,8 @@ entscheide proc prob@(Its
 
 
     let -- generalised farkas
-      decrease (i,(Rule l rs cs)) = pl `eliminate` (interpretCon cs)
-        where  pl = (interpretRhs rs `add` (P.constant $ strict i)) `sub` interpretLhs l
+      decrease (i,Rule l rs cs) = pl `eliminate` interpretCon cs
+        where  pl = (interpretRhs rs `add` P.constant (strict i)) `sub` interpretLhs l
       bounded (Rule l _ cs) = eliminate pl (interpretCon cs)
         where pl = neg $ interpretLhs l `sub` P.constant one
       eliminate p ps = do
@@ -247,13 +247,13 @@ entscheide proc prob@(Its
         mu1 <- nvar'
         SMT.assert $ mu0 SMT..> SMT.zero SMT..|| mu1 SMT..> SMT.zero
         mui <- mapM (\_ -> P.constant `liftM` nvar') [1..length ps]
-        return $ absolute $ bigAdd $ P.constant mu0 : (P.constant mu1 `mul` p) : (zipWith mul mui ps)
+        return $ absolute $ bigAdd $ P.constant mu0 : (P.constant mu1 `mul` p) : zipWith mul mui ps
 
     let -- farkas
       -- TODO: handle non-linear expressions on rhs
-      decreaseFarkas (i,(Rule l rs cs)) = pl `eliminateFarkas`(interpretCon $ filterLinear cs)
+      decreaseFarkas (i,Rule l rs cs) = pl `eliminateFarkas` interpretCon (filterLinear cs)
         where pl = interpretLhs l `sub` (interpretRhs rs `add` P.constant (strict i))
-      boundedFarkas (Rule l _ cs) = pl `eliminateFarkas`(interpretCon $ filterLinear cs)
+      boundedFarkas (Rule l _ cs) = pl `eliminateFarkas` interpretCon (filterLinear cs)
         where pl = interpretLhs l `sub` P.constant one
 
       eliminateFarkas ply cs = do
@@ -289,10 +289,10 @@ entscheide proc prob@(Its
 
 
 
-    SMT.assert $ (SMT.top :: SMT.Formula Int)
+    SMT.assert (SMT.top :: SMT.Formula Int)
     SMT.assert =<< SMT.bigAndM orderConstraint
     SMT.assert $ SMT.bigOr rulesConstraint
-    SMT.assert $ undefinedConstraint
+    SMT.assert undefinedConstraint
 
 
     return $ SMT.decode (coefficientEncoder, strictVarEncoder)
@@ -304,10 +304,10 @@ entscheide proc prob@(Its
     allrules = irules_ prob
     someirules
       | withSize  = IM.assocs $ IM.filterWithKey (\k _ -> k `elem` withSizebounds proc)  allrules
-      | otherwise = IM.assocs $ allrules
+      | otherwise = IM.assocs allrules
     (is, somerules) =  unzip someirules
     strictrules = TB.nonDefined tbounds `L.intersect` is
-    encode = P.fromViewWithM (\c -> SMT.ivarMO c) -- FIXME: incorporate restrict var for strongly linear
+    encode = P.fromViewWithM SMT.ivarMO -- FIXME: incorporate restrict var for strongly linear
         {-| PI.restrict c = SMT.fm `liftM` SMT.sivarm c-}
         {-| otherwise     = SMT.fm `liftM` SMT.nvarm c-}
     absi = M.mapWithKey (curry (PI.mkInterpretation kind)) sig
@@ -320,7 +320,7 @@ entscheide proc prob@(Its
       where
         interpretFun f = P.substituteVariables interp . M.fromList . zip PI.indeterminates
           where interp = PI.interpretations ebsi `find` f
-        interpretArg a = P.mapCoefficients SMT.num a
+        interpretArg   = P.mapCoefficients SMT.num
 
     mkOrder :: (M.Map Coefficient (Maybe Int), M.Map Strict Int) -> PolyOrder 
     mkOrder (inter, stricts) = PolyOrder
@@ -336,8 +336,8 @@ entscheide proc prob@(Its
         pint  = M.map (P.fromViewWith (M.map (fromMaybe 666) inter `find`)) absi
         costs
           | withSize = computeBoundWithSize tgraph allrules (IM.fromList someirules) tbounds (error "sizebounds" `fromMaybe` sizebounds) costf 
-          | otherwise = C.poly (inst $ startterm)
-          where costf f = C.poly . inst $ Term f (args $ startterm)
+          | otherwise = C.poly (inst startterm)
+          where costf f = C.poly . inst $ Term f (args startterm)
 
         times = M.map (const costs) strictMap
 

@@ -134,7 +134,7 @@ instance PP.Pretty Growth where
   pretty (Max i)     = PP.text ".=" PP.<+> PP.int i
   pretty (MaxPlus i) = PP.text ".+" PP.<+> PP.int i
   pretty (SumPlus i) = PP.text ".*" PP.<+> PP.int i
-  pretty (Unbounded) = PP.text ".?"
+  pretty Unbounded   = PP.text ".?"
 
 isSumPlus :: Growth -> Bool
 isSumPlus (SumPlus _) = True

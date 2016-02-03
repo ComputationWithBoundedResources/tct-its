@@ -120,7 +120,7 @@ filterRules f tb = tb
   { tbounds_ = IM.filterWithKey (\k _ -> f k) (tbounds_ tb)
   , tcosts_  = IM.filterWithKey (\k _ -> f k) (tcosts_ tb) }
 
-instance PP.Pretty (Timebounds) where
+instance PP.Pretty Timebounds where
   pretty = ppTimebounds
 
 ppTimebounds :: Timebounds -> PP.Doc
