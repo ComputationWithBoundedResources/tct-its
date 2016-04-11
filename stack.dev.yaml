@@ -7,4 +7,4 @@ packages:
 extra-deps:
 - fgl-visualize-0.1.0.1
 - dotgen-0.4.2
-resolver: lts-3.4
+resolver: lts-5.12

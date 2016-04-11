@@ -1,5 +1,5 @@
 Name:          tct-its
-Version:       3.1.0
+Version:       3.2.0
 Author:
   Georg Moser, Michael Schaper
 Maintainer:
@@ -36,9 +36,9 @@ Executable tct-its
     parsec           == 3.1.*,
 
     slogic           == 0.*,
-    tct-common       == 3.1.*,
-    tct-core         == 3.1.*,
-    tct-its          == 3.1.*
+    tct-common       == 3.2.*,
+    tct-core         == 3.2.*,
+    tct-its          == 3.2.*
 
   extensions: 
     ConstraintKinds,
@@ -89,8 +89,8 @@ Library
     parsec           == 3.1.*,
 
     slogic           == 0.*,
-    tct-common       == 3.1.*,
-    tct-core         == 3.1.*
+    tct-common       == 3.2.*,
+    tct-core         == 3.2.*
     
   ghc-options:
     -Wall -fno-warn-orphans -fno-spec-constr-count -rtsopts -with-rtsopts=-N
