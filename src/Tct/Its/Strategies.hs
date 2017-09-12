@@ -28,6 +28,7 @@ itsDeclarations = [
   , SD sizeboundsDeclaration
   , SD unreachableRulesDeclaration
   , SD unsatRulesDeclaration
+  , SD runtimeDeclaration
   ]
 
 runtimeDeclaration :: T.Declaration ('[Argument 'Optional Bool, Argument 'Optional Bool] T.:-> ItsStrategy)

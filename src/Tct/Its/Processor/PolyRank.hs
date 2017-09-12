@@ -43,23 +43,23 @@ forall X . And p_i(X) >= 0 => l(X) > 0
 [3] Gulwani, A. Tiwari. Constrainted-based Approach for Analysis of Hybrid Systems.
 -}
  
-module Tct.Its.Processor.PolyRank 
-  ( 
-  polyRankProcessor
+module Tct.Its.Processor.PolyRank  where
+  -- ( 
+  -- polyRankProcessor
   
-  , linear
-  , stronglyLinear
-  , quadratic
-  , mixed
-  , polyDeclaration
+  -- , linear
+  -- , stronglyLinear
+  -- , quadratic
+  -- , mixed
+  -- , polyDeclaration
   
-  , farkas
-  , farkasDeclaration
+  -- , farkas
+  -- , farkasDeclaration
 
-  , timebounds
-  , timeboundsCandidates
+  -- , timebounds
+  -- , timeboundsCandidates
 
-  ) where
+  -- ) where
 
 import           Control.Monad                       (liftM)
 import qualified Data.List                           as L (partition, intersect, subsequences)
@@ -138,8 +138,8 @@ type Coefficient = PI.CoefficientVar Fun
 data PolyOrder = PolyOrder
   { shape_   :: PI.Shape
   , pint_    :: PolyInter
-  , strict_  :: [(Rule, IntPoly, IntPoly)]
-  , weak_    :: [(Rule, IntPoly, IntPoly)]
+  , strict_  :: [(Int,Rule, IntPoly, IntPoly)]
+  , weak_    :: [(Int,Rule, IntPoly, IntPoly)]
   , times_   :: IM.IntMap C.Complexity
   , sbounds_ :: Maybe (Vars, SB.Sizebounds)
   } deriving Show
@@ -164,7 +164,7 @@ instance PP.Pretty PolyOrder where
       ppOrder ppOrd rs = PP.table [(PP.AlignRight, as), (PP.AlignLeft, bs), (PP.AlignLeft, cs)]
         where
           (as,bs,cs) = unzip3 $ concatMap ppRule rs
-          ppRule (r, instlhs,instrhs) =
+          ppRule (_,r, instlhs,instrhs) =
             [ (PP.pretty (con r)              , PP.text " ==> " , PP.empty)
             , (PP.indent 2(PP.pretty (lhs r)) , PP.text "   = " , PP.pretty instlhs)
             , (PP.empty                       , ppOrd           , PP.pretty instrhs)
@@ -328,8 +328,8 @@ entscheide proc prob@Its
     mkOrder (PI.PolyInter pint, stricts) = PolyOrder
       { shape_  = shp
       , pint_   = PI.PolyInter pint
-      , strict_ = map (\(_,r) -> (r, inst (lhs r), bigAdd $ map inst (rhs r))) strictList
-      , weak_   = map (\(_,r) -> (r, inst (lhs r), bigAdd $ map inst (rhs r))) weakList
+      , strict_ = map (\(i,r) -> (i,r, inst (lhs r), bigAdd $ map inst (rhs r))) strictList
+      , weak_   = map (\(i,r) -> (i,r, inst (lhs r), bigAdd $ map inst (rhs r))) weakList
       , times_  = IM.fromAscList $ M.toAscList times 
       , sbounds_ = if withSize then (\sb -> (domain prob, sb)) `fmap` sizebounds else Nothing}
       where

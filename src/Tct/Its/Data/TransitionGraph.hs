@@ -14,6 +14,8 @@ module Tct.Its.Data.TransitionGraph
   , upToNextSCC
   , fromNextSCC
   , trivialSCCs
+  , nonTrivialSCCs
+  , simpleCycles
   -- * Update
   , deleteNodes
   , restrictToNodes
@@ -24,6 +26,7 @@ import           Control.Monad           (void)
 import qualified Data.Graph.Inductive    as Gr
 import qualified Data.IntMap             as IM
 import qualified Data.List               as L (nub)
+import           Data.Maybe              (catMaybes)
 import qualified Data.Set                as S
 
 import qualified Tct.Core.Common.Pretty  as PP
@@ -109,6 +112,13 @@ trivialSCCs tgraph = concat . filter acyclic  $ Gr.scc tgraph
     acyclic [scc] = scc `notElem` Gr.suc tgraph scc
     acyclic _     = False
 
+nonTrivialSCCs :: TGraph -> [[RuleId]]
+nonTrivialSCCs tgraph = filter cyclic $ Gr.scc tgraph
+  where
+    cyclic [scc] = scc `elem` Gr.suc tgraph scc
+    cyclic _     = True
+
+
 -- | Returns nextSCC with an open rule.
 nextSCC :: TGraph -> TB.Timebounds -> [RuleId]
 nextSCC tgraph tbounds = go (sccs tgraph)
@@ -152,4 +162,54 @@ deleteNodes = Gr.delNodes
 restrictToNodes :: [RuleId] -> TGraph -> TGraph
 restrictToNodes rs gr = deleteNodes invrs gr
   where invrs = S.toList $ S.fromList (Gr.nodes gr) `S.difference` S.fromList rs
+
+
+--- * cycles ---------------------------------------------------------------------------------------------------------
+-- compute simple paths (sequence of edges) which are cycles
+
+data Edge = Edge
+ { from :: Fun
+ , to   :: Fun
+ , rid  :: Int }
+ deriving (Show, Eq)
+
+data RPath = Path Edge [Edge] | Cycle [Edge]
+  deriving Show
+
+simpleCycles :: Rules -> [[RuleId]]
+simpleCycles rs = fmap S.toList $ L.nub $ fmap S.fromList [ fromEdges es | Cycle es <- rpaths (fromRules rs) ]
+
+fromRules :: Rules  -> [Edge]
+fromRules rs = [ Edge {from = fun (lhs r), to = fun (head $ rhs r), rid = i} | (i,r) <- IM.toList rs ]
+
+fromEdges :: [Edge] -> [RuleId]
+fromEdges es = [ rid e | e <- es ]
+
+isLoop, notIsLoop :: Edge -> Bool
+isLoop e    = from e == to e
+notIsLoop e = from e /= to e
+
+isSimple :: Edge -> [Edge] -> Bool
+isSimple e es = e `notElem` es
+
+prependSimple :: Edge -> RPath -> Maybe RPath
+prependSimple e (Path v [])
+  | isLoop v        = Just $ Cycle [v]
+  | notIsLoop e
+  && from v == to e = Just $ Path v [e]
+  | otherwise       = Nothing
+prependSimple e (Path v ws@(w:_))
+  | to v == from w  = Just $ Cycle (v:ws)
+  | to e == from w
+  && notIsLoop  e
+  && isSimple e ws  = Just $ Path v (e:ws)
+  | otherwise       = Nothing
+prependSimple _ _   = Nothing
+
+rpaths :: [Edge] -> [RPath]
+rpaths es = go [ Path e [] | e <- es ] [] where
+  go new old
+    | null new  = old
+    | otherwise = go (step new) (new ++ old)
+  step ps = catMaybes [ e `prependSimple` p | e <- es, p <- ps ]
 

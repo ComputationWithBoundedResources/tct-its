@@ -74,6 +74,7 @@ Library
     Tct.Its.Processors
     Tct.Its.Processor.Chaining
     Tct.Its.Processor.Empty
+    Tct.Its.Processor.Looptree
     Tct.Its.Processor.PathAnalysis
     Tct.Its.Processor.TransitionPredicateAbstraction
     Tct.Its.Processor.PolyRank
@@ -94,6 +95,7 @@ Library
     
   ghc-options:
     -Wall -fno-warn-orphans -fno-spec-constr-count -rtsopts -with-rtsopts=-N
+    -- -Wall -O0 -fno-warn-orphans -fdefer-typed-holes
   extensions: 
     ConstraintKinds,
     DataKinds,
