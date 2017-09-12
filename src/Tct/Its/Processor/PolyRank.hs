@@ -222,10 +222,11 @@ entscheide proc prob@Its
     solver 
       | useFarkas proc = SMT.yices
       | otherwise      = SMT.minismt' Nothing ["-m","-ib", "-1"]
-  res :: SMT.Result (M.Map Coefficient (Maybe Int), M.Map Strict Int) <- SMT.smtSolveSt solver $ do 
+  res :: SMT.Result (PolyInter, M.Map Strict Int) <- SMT.smtSolveSt solver $ do 
     SMT.setLogic $ if useFarkas proc then SMT.QF_LIA else SMT.QF_NIA
     -- TODO: memoisation is here not used
-    (ebsi,coefficientEncoder) <- SMT.memo $ PI.PolyInter `liftM` T.mapM encode absi
+    ebsi <- PI.PolyInter `liftM` T.mapM encode absi
+    -- (ebsi,coefficientEncoder) <- SMT.memo $ PI.PolyInter `liftM` T.mapM encode absi
     (_, strictVarEncoder) <- SMT.memo $ mapM  (SMT.snvarMO . Strict) is
 
     let
@@ -288,14 +289,13 @@ entscheide proc prob@Its
         | otherwise = SMT.top
 
 
-
     SMT.assert (SMT.top :: SMT.Formula Int)
     SMT.assert =<< SMT.bigAndM orderConstraint
     SMT.assert $ SMT.bigOr rulesConstraint
     SMT.assert undefinedConstraint
 
 
-    return $ SMT.decode (coefficientEncoder, strictVarEncoder)
+    return $ SMT.decode (ebsi, strictVarEncoder)
 
   return $ mkOrder `fmap` res
   where
@@ -307,11 +307,13 @@ entscheide proc prob@Its
       | otherwise = IM.assocs allrules
     (is, somerules) =  unzip someirules
     strictrules = TB.nonDefined tbounds `L.intersect` is
-    encode = P.fromViewWithM SMT.ivarMO -- FIXME: incorporate restrict var for strongly linear
-        {-| PI.restrict c = SMT.fm `liftM` SMT.sivarm c-}
-        {-| otherwise     = SMT.fm `liftM` SMT.nvarm c-}
+    -- encode = P.fromViewWithM SMT.ivarMO -- FIXME: incorporate restrict var for strongly linear
+    encode = P.fromViewWithM enc where
+      enc c
+        | PI.restrict c = SMT.sivarM'
+        | otherwise     = SMT.ivarM'
     absi = M.mapWithKey (curry (PI.mkInterpretation kind)) sig
-    kind = PI.ConstructorBased shp S.empty 
+    kind = PI.Unrestricted shp -- PI.ConstructorBased shp S.empty 
     sig = restrictSignature (S.fromList $ funs somerules) (signature_ prob)
     funs = foldl (\fs (Rule l r _) -> fun l : map fun r ++ fs) []
     shp = if useFarkas proc then PI.Linear else shape proc
@@ -322,8 +324,8 @@ entscheide proc prob@Its
           where interp = PI.interpretations ebsi `find` f
         interpretArg   = P.mapCoefficients SMT.num
 
-    mkOrder :: (M.Map Coefficient (Maybe Int), M.Map Strict Int) -> PolyOrder 
-    mkOrder (inter, stricts) = PolyOrder
+    mkOrder :: (PolyInter, M.Map Strict Int) -> PolyOrder 
+    mkOrder (PI.PolyInter pint, stricts) = PolyOrder
       { shape_  = shp
       , pint_   = PI.PolyInter pint
       , strict_ = map (\(_,r) -> (r, inst (lhs r), bigAdd $ map inst (rhs r))) strictList
@@ -333,7 +335,7 @@ entscheide proc prob@Its
       where
         strictMap = M.mapKeysMonotonic unStrict $ M.filter (>0) stricts
         (strictList, weakList) = L.partition (\(i,_) -> i `M.member` strictMap) someirules
-        pint  = M.map (P.fromViewWith (M.map (fromMaybe 666) inter `find`)) absi
+        -- pint  = M.map (P.fromViewWith (M.map (fromMaybe 666) inter `find`)) absi
         costs
           | withSize = computeBoundWithSize tgraph allrules (IM.fromList someirules) tbounds (error "sizebounds" `fromMaybe` sizebounds) costf 
           | otherwise = C.poly (inst startterm)
