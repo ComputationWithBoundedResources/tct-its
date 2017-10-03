@@ -33,7 +33,7 @@ module Tct.Its.Data.Rule
 
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
-import Control.Monad (void)
+import Control.Monad (void,join)
 import Control.Applicative
 import qualified Text.Parsec.Expr as PE
 
@@ -199,10 +199,15 @@ pPoly = PE.buildExpressionParser table poly PR.<?> "poly"
       PR.<|> pVar
     table =
       [ [ unary "-" neg ]
+      , [ expn ]
       , [ binaryL "*" mul PE.AssocLeft]
       , [ binaryL "+" add PE.AssocLeft, binaryL "-" sub PE.AssocLeft] ]
     unary f op = PE.Prefix (PR.reserved f *> return op)
     binaryL f op = PE.Infix (PR.reserved f *> return op)
+    -- XXX: MS: nasty (partial) hack to parse expressions c*v^n
+    expn = PE.Infix (PR.reserved "^" *> return (\p1 p2 -> exp' (P.toView p1) (P.toView p2))) PE.AssocNone
+    exp' [(c,[(v,1)])] [(c0,[])] = P.fromView [(c,[(v,c0)])]
+    exp' _ _                     = error "can't parse exp"
 
 -- f([poly])
 pTerm :: Parser Term
