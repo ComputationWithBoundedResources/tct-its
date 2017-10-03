@@ -41,22 +41,22 @@ simpArg :: T.Argument 'T.Required Simplify
 simpArg = T.flag "simplify" ["Specifies whether to apply additional simplifications."]
 
 cyclemania :: Declaration ('[Argument 'Optional Simplify] :-> Strategy Its Its)
-cyclemania = 
-  T.declare 
-    "cyclemania" 
-    ["Tries to infer a linear polynomial ranking function for each cyclic path."] 
-    (OneTuple $ simpArg `optional` Simplify) 
-    (\case 
+cyclemania =
+  T.declare
+    "cyclemania"
+    ["Tries to infer a linear polynomial ranking function for each cyclic path."]
+    (OneTuple $ simpArg `optional` Simplify)
+    (\case
        Simplify   -> withSimpl (processor CycleMania)
        NoSimplify -> processor CycleMania)
 
 looptree :: Declaration ('[Argument 'Optional Simplify] :-> Strategy Its Its)
-looptree = 
-  T.declare 
-    "looptree" 
-    ["Tries to construct a loop tree."] 
-    (OneTuple $ simpArg `optional` Simplify) 
-    (\case 
+looptree =
+  T.declare
+    "looptree"
+    ["Tries to construct a loop tree."]
+    (OneTuple $ simpArg `optional` Simplify)
+    (\case
        Simplify   -> withSimpl (processor Looptree)
        NoSimplify -> processor Looptree)
 
@@ -84,10 +84,10 @@ restrictToRuleIds is its = Just
 
 --- * cyclemania -----------------------------------------------------------------------------------------------------
 -- this processor computes all simple cyclic paths and tries to infer a (linear) polynomial ranking function for each
--- one; 
+-- one;
 -- this processor intended for testing only: informally if this processor fails then a complexity analysis relying on
 -- linear prfs only (shold) fail
- 
+
 
 data CycleManiaProcessor = CycleMania
   deriving Show
@@ -130,17 +130,35 @@ entscheide its = do
 -- hierarchy of loops; this implementation does not make sure that the nesting hierarchy is correct: this happens when
 -- the inner loop does not depend on the outer loop
 
-data Tree a     = Tree a [Tree a] | Leaf a
+data Top a = Top a [Tree a]
   deriving (Show, Functor, Foldable, Traversable)
 
-isComplete :: Tree a -> Bool
-isComplete (Tree _ ts) = all isComplete ts
-isComplete (Leaf _)    = False
+data Tree a
+  = Tree
+  { program     :: a
+  , cutset      :: a
+  , subprograms :: [Tree a] }
+  deriving (Show, Functor, Foldable, Traversable)
+
+draw :: Show a => Top a -> [String]
+draw (Top p ts) = ("P: " ++ show p)  : drawSubTrees (ts) where
+  draw' t@Tree{} = ("p:" ++ show (program t) ++ " c: " ++ show (cutset t))  : drawSubTrees (subprograms t)
+  shift first other = zipWith (++) (first : repeat other)
+  drawSubTrees []     = []
+  drawSubTrees [t]    = "|" : shift "`- " "   " (draw' t)
+  drawSubTrees (t:ts) = "|" : shift "+- " "|  " (draw' t) ++ drawSubTrees ts
+
+isComplete :: Top [RuleId] -> Bool
+isComplete (Top _ ts)      = all isComplete' ts where
+  isComplete' (Tree [] [] []) = True
+  isComplete' (Tree _  cs ts)
+    | null ts   = not (null cs)
+    | otherwise = all isComplete' ts
 
 data LooptreeProcessor = Looptree
   deriving Show
 
-data LooptreeProof = LooptreeProof (Tree [RuleId])
+data LooptreeProof = LooptreeProof (Top [RuleId])
   deriving Show
 
 instance T.Processor LooptreeProcessor where
@@ -151,27 +169,33 @@ instance T.Processor LooptreeProcessor where
 
   execute Looptree prob = do
     let rs = IM.keys $ irules_ prob
-    tree <- go rs
+    tree <- go0 rs
     T.succeedWith0 (LooptreeProof tree) (const $ T.yesNoCert $ isComplete tree)
 
     where
-      go [] = return $ Tree [] []
-      go rs = do
+      go0 rs = Top rs <$> sequence [ goN ns | ns <- TG.nonTrivialSCCs (tgraph_ prob) ]
+      goN [] = return $ Tree [] [] []
+      goN rs = do
         let Just its = restrictToRuleIds rs prob
         result <- P.entscheide farkas its
         case result of
           SMT.Sat order ->
-            let tgraph' = TG.deleteNodes [ i | (i,_,_,_) <- P.strict_ order ] $ TG.restrictToNodes rs $ tgraph_ prob in
-            Tree rs <$> sequence [ go ns | ns <- TG.nonTrivialSCCs tgraph' ]
+            let
+              is      = [ i | (i,_,_,_) <- P.strict_ order ]
+              tgraph' = TG.deleteNodes is $ TG.restrictToNodes rs $ tgraph_ prob
+            in
+            Tree rs is <$> sequence [ goN ns | ns <- TG.nonTrivialSCCs tgraph' ]
           _             ->
-            return $ Leaf rs
+            return $ Tree rs [] []
 
 
 
 --- * pretty print ---------------------------------------------------------------------------------------------------
 
 instance PP.Pretty LooptreeProof where
-  pretty = PP.text . show
+  pretty (LooptreeProof t)= PP.vcat
+    [ PP.text "We construct a looptree:"
+    , PP.indent 2 $ PP.vcat $ PP.text <$> (draw t) ]
 
 instance Xml.Xml LooptreeProof where
   toXml = Xml.text . show
