@@ -69,10 +69,10 @@ def useAT useAF =
     st =
       try simpl2
       .>>> te (withKnowledgePropagation farkas)
+      -- .>>> te (try sizebounds .>>> withKnowledgePropagation farkas)
       .>>> te (try sizebounds .>>> usingTimebounds)
     usingTimebounds = withProblem $
       \prob -> es $ fastestN 8 [ withKnowledgePropagation (timebounds c) | c <- timeboundsCandidates (selNextSCC prob) ]
-
 
 
 -- FIXME: boundtrivialsccs is not always 1 in the recursive case; take max label

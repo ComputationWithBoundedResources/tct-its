@@ -175,7 +175,13 @@ instance PP.Pretty Its where
     pp "Rules:" (ppRules (irules_ prob) (timebounds_ prob))
     PP.<$$> pp "Signature:" (PP.pretty $ signature_ prob)
     PP.<$$> pp "Flow Graph:" (PP.pretty (tgraph_ prob))
-    --PP.<$$> pp "Sizebounds:" (PP.pretty (sizebounds_ prob))
+    PP.<$$>
+      maybe
+        PP.empty
+        (\d -> pp "Sizebounds:" (PP.pretty (domain prob, d)))
+        (sizebounds_ prob)
+
+-- ppSizebounds :: Vars -> Sizebounds -> PP.Doc
     where pp st p = PP.text st PP.<$$> PP.indent 2 p
 
 instance Xml.Xml Its where

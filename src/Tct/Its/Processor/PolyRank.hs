@@ -79,6 +79,7 @@ import qualified Tct.Common.Polynomial               as P
 import qualified Tct.Common.PolynomialInterpretation as PI
 import           Tct.Common.Ring
 import qualified Tct.Common.SMT as SMT
+import qualified SLogic.Smt.Solver (optimathsat)
 
 import qualified Tct.Its.Data.Complexity             as C
 import           Tct.Its.Data.Problem
@@ -221,6 +222,7 @@ entscheide proc prob@Its
   let 
     solver 
       | useFarkas proc = SMT.yices
+      -- | useFarkas proc = SMT.optimathsat
       | otherwise      = SMT.minismt' Nothing ["-m","-ib", "-1"]
   res :: SMT.Result (PolyInter, M.Map Strict Int) <- SMT.smtSolveSt solver $ do 
     SMT.setLogic $ if useFarkas proc then SMT.QF_LIA else SMT.QF_NIA
@@ -292,6 +294,7 @@ entscheide proc prob@Its
     SMT.assert (SMT.top :: SMT.Formula Int)
     SMT.assert =<< SMT.bigAndM orderConstraint
     SMT.assert $ SMT.bigOr rulesConstraint
+    SMT.assert $ SMT.maximize $ bigAdd [ strict i | i <- strictrules ]
     SMT.assert undefinedConstraint
 
 
