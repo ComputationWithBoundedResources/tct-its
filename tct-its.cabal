@@ -74,6 +74,7 @@ Library
     Tct.Its.Processors
     Tct.Its.Processor.Chaining
     Tct.Its.Processor.Empty
+    Tct.Its.Processor.Lare
     Tct.Its.Processor.Looptree
     Tct.Its.Processor.PathAnalysis
     Tct.Its.Processor.TransitionPredicateAbstraction

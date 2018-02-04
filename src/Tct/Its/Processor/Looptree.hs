@@ -168,25 +168,26 @@ instance T.Processor LooptreeProcessor where
   type Forking LooptreeProcessor     = T.Judgement
 
   execute Looptree prob = do
-    let rs = IM.keys $ irules_ prob
-    tree <- go0 rs
+    tree <- infer prob 
     T.succeedWith0 (LooptreeProof tree) (const $ T.yesNoCert $ isComplete tree)
 
-    where
-      go0 rs = Top rs <$> sequence [ goN ns | ns <- TG.nonTrivialSCCs (tgraph_ prob) ]
-      goN [] = return $ Tree [] [] []
-      goN rs = do
-        let Just its = restrictToRuleIds rs prob
-        result <- P.entscheide farkas its
-        case result of
-          SMT.Sat order ->
-            let
-              is      = [ i | (i,_,_,_) <- P.strict_ order ]
-              tgraph' = TG.deleteNodes is $ TG.restrictToNodes rs $ tgraph_ prob
-            in
-            Tree rs is <$> sequence [ goN ns | ns <- TG.nonTrivialSCCs tgraph' ]
-          _             ->
-            return $ Tree rs [] []
+
+infer :: Its -> T.TctM (Top [RuleId])
+infer prob = go0 (IM.keys $ irules_ prob) where
+  go0 rs = Top rs <$> sequence [ goN ns | ns <- TG.nonTrivialSCCs (tgraph_ prob) ]
+  goN [] = return $ Tree [] [] []
+  goN rs = do
+    let Just its = restrictToRuleIds rs prob
+    result <- P.entscheide farkas its
+    case result of
+      SMT.Sat order ->
+        let
+          is      = [ i | (i,_,_,_) <- P.strict_ order ]
+          tgraph' = TG.deleteNodes is $ TG.restrictToNodes rs $ tgraph_ prob
+        in
+        Tree rs is <$> sequence [ goN ns | ns <- TG.nonTrivialSCCs tgraph' ]
+      _             ->
+        return $ Tree rs [] []
 
 
 
