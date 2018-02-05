@@ -294,7 +294,8 @@ entscheide proc prob@Its
     SMT.assert (SMT.top :: SMT.Formula Int)
     SMT.assert =<< SMT.bigAndM orderConstraint
     SMT.assert $ SMT.bigOr rulesConstraint
-    SMT.assert $ SMT.maximize $ bigAdd [ strict i | i <- strictrules ]
+    -- SMT.assert $ SMT.maximize $ bigAdd [ strict i | i <- strictrules ]
+    -- SMT.assert $ SMT.minimize $ bigAdd [ strict i | i <- strictrules ]
     SMT.assert undefinedConstraint
 
 

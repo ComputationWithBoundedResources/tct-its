@@ -5,23 +5,27 @@ module Tct.Its.Processor.Looptree where
 import           Data.Either                         (partitionEithers)
 import qualified Data.IntMap.Strict                  as IM
 import           Data.List                           ((\\))
+import qualified Data.Map.Strict                     as M
 import           Data.Maybe                          (catMaybes, fromMaybe)
 
+import           Tct.Its.Data.Complexity             as C
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.Rule
 import qualified Tct.Its.Data.Timebounds             as TB
 import qualified Tct.Its.Data.TransitionGraph        as TG
 import           Tct.Its.Data.Types
-
-import qualified Tct.Common.PolynomialInterpretation as PI
-import qualified Tct.Common.SMT                      as SMT
 import qualified Tct.Its.Processor.PolyRank          as P
 import qualified Tct.Its.Processor.Simplification    as S
 
+import qualified Tct.Common.Polynomial               as Poly
+import qualified Tct.Common.PolynomialInterpretation as PI
+import           Tct.Common.Ring
+import qualified Tct.Common.SMT                      as SMT
+
+import           Tct.Core
 import qualified Tct.Core.Common.Pretty              as PP
 import qualified Tct.Core.Common.Xml                 as Xml
 import qualified Tct.Core.Data                       as T
-import           Tct.Core
 
 --- * processor ------------------------------------------------------------------------------------------------------
 
@@ -137,6 +141,7 @@ data Tree a
   = Tree
   { program     :: a
   , cutset      :: a
+  , bound       :: Complexity
   , subprograms :: [Tree a] }
   deriving (Show, Functor, Foldable, Traversable)
 
@@ -150,8 +155,8 @@ draw (Top p ts) = ("P: " ++ show p)  : drawSubTrees (ts) where
 
 isComplete :: Top [RuleId] -> Bool
 isComplete (Top _ ts)      = all isComplete' ts where
-  isComplete' (Tree [] [] []) = True
-  isComplete' (Tree _  cs ts)
+  isComplete' (Tree [] [] b []) = True
+  isComplete' (Tree _  cs b ts)
     | null ts   = not (null cs)
     | otherwise = all isComplete' ts
 
@@ -168,14 +173,14 @@ instance T.Processor LooptreeProcessor where
   type Forking LooptreeProcessor     = T.Judgement
 
   execute Looptree prob = do
-    tree <- infer prob 
+    tree <- infer prob
     T.succeedWith0 (LooptreeProof tree) (const $ T.yesNoCert $ isComplete tree)
 
 
 infer :: Its -> T.TctM (Top [RuleId])
 infer prob = go0 (IM.keys $ irules_ prob) where
   go0 rs = Top rs <$> sequence [ goN ns | ns <- TG.nonTrivialSCCs (tgraph_ prob) ]
-  goN [] = return $ Tree [] [] []
+  goN [] = return $ Tree [] [] one []
   goN rs = do
     let Just its = restrictToRuleIds rs prob
     result <- P.entscheide farkas its
@@ -185,9 +190,16 @@ infer prob = go0 (IM.keys $ irules_ prob) where
           is      = [ i | (i,_,_,_) <- P.strict_ order ]
           tgraph' = TG.deleteNodes is $ TG.restrictToNodes rs $ tgraph_ prob
         in
-        Tree rs is <$> sequence [ goN ns | ns <- TG.nonTrivialSCCs tgraph' ]
+        Tree rs is (boundOf prob order) <$> sequence [ goN ns | ns <- TG.nonTrivialSCCs tgraph' ]
       _             ->
-        return $ Tree rs [] []
+        return $ Tree rs [] C.Unknown []
+
+
+boundOf :: Its -> P.PolyOrder -> Complexity
+boundOf prob order = C.poly $ normalize [ interpret int | int <- M.elems (PI.interpretations $ P.pint_ order) ] where
+  interpret int = Poly.substituteVariables int $ M.fromList $ zip PI.indeterminates (args $ startterm_ prob)
+  normalize     = foldr (Poly.zipCoefficientsWith $ \c1 c2 -> abs c1 `max` abs c2) (Poly.fromView [])
+
 
 
 

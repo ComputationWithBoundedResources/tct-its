@@ -90,6 +90,7 @@ Library
     fgl-visualize    == 0.1.0.*,
     parsec           == 3.1.*,
 
+    lare             == 0.*,
     slogic           == 0.*,
     tct-common       == 3.2.*,
     tct-core         == 3.2.*
