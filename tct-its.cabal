@@ -22,6 +22,14 @@ source-repository head
   type:     git
   location: git://github.com/ComputationWithBoundedResources/tct-its
 
+Executable paicc
+  main-is:
+    Main.hs
+  hs-source-dirs:
+    paicc
+  build-depends: base, tct-core, tct-its
+  ghc-options: -threaded
+
 Executable tct-its
   main-is: 
     Main.hs

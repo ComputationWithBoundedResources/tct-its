@@ -21,6 +21,8 @@ import qualified Tct.Core.Common.Pretty       as PP
 import           Tct.Core.Common.Xml          (Xml, toXml)
 import qualified Tct.Core.Common.Xml          as Xml
 import qualified Tct.Core.Data                as T
+import           Tct.Core.Data                ((.>>>), processor)
+import           Tct.Core.Processor.Transform as T (transform')
 
 import qualified Tct.Common.Polynomial        as P
 
@@ -40,6 +42,9 @@ data Program l = Program
   , cfg :: LA.Program (LA.V Fun) (l (LA.Var Var)) }
 type Proof     = LA.Top [Edge LA.F] [Edge LA.F]
 
+type SizeAbstraction = Program LA.Assignment
+type FlowAbstraction = Program LA.F
+
 deriving instance Show (Program LA.Assignment)
 deriving instance Show (Program LA.F)
 
@@ -50,7 +55,7 @@ toEdges prob = flip IM.mapWithKey irs $
   \i Rule{..} ->
     LA.edge
       (LA.V $ fun lhs)
-      (LA.Assignment [ (LA.Var v, toBound $ LB.lboundOf lsb rv) | v <- vs, let rv = RV i 1 v ])
+      (LA.Assignment [ (LA.Var v, toBound $ LB.lboundOf lsb rv) | v <- vs, let rv = RV i 0 v ])
       (LA.V $ fun $ head rhs)
   where
     irs      = irules_ prob
@@ -90,7 +95,7 @@ toLare prob lt =
     , LA.outer   = [ LA.Out v | e1 <- cfg', e2 <- cfg \\ cfg', LA.src e1 == LA.dst e2, let LA.V v = LA.src e1 ] }
     where  posToVar = intersperse '.' . concat . fmap show . reverse
 
-  positions pos = (:pos) `fmap` iterate succ 0
+  positions pos = (:pos) `fmap` iterate succ (0 :: Int)
 
 
 toLareM :: Its -> LT.Top [RuleId] -> T.TctM (Program LA.Assignment)
@@ -103,6 +108,8 @@ toLareM prob lt = case localSizebounds_ prob of
 
 
 --- * Processors -----------------------------------------------------------------------------------------------------
+
+-- FIXME: use Tct.Core.Transform
 
 
 data LooptreeTransformer = LooptreeTransformer deriving Show
@@ -121,24 +128,24 @@ instance T.Processor LooptreeTransformer where
       else T.abortWith proof
 
 
-data SizeAbstraction = SizeAbstraction deriving Show
+data SizeAbstractionProcessor = SizeAbstraction deriving Show
 
-instance T.Processor SizeAbstraction where
-  type ProofObject SizeAbstraction = ()
-  type In SizeAbstraction          = (Its, LT.LooptreeProof)
-  type Out SizeAbstraction         = Program LA.Assignment
-  type Forking SizeAbstraction     = T.Id
+instance T.Processor SizeAbstractionProcessor where
+  type ProofObject SizeAbstractionProcessor = ()
+  type In SizeAbstractionProcessor          = (Its, LT.LooptreeProof)
+  type Out SizeAbstractionProcessor         = SizeAbstraction
+  type Forking SizeAbstractionProcessor     = T.Id
 
   execute SizeAbstraction (prob, LT.LooptreeProof tree) = T.succeedWithId () =<< toLareM prob tree
 
 
-data FlowAbstraction = FlowAbstraction deriving Show
+data FlowAbstractionProcessor = FlowAbstraction deriving Show
 
-instance T.Processor FlowAbstraction where
-  type ProofObject FlowAbstraction = ()
-  type In FlowAbstraction          = Program LA.Assignment
-  type Out FlowAbstraction         = Program LA.F
-  type Forking FlowAbstraction     = T.Id
+instance T.Processor FlowAbstractionProcessor where
+  type ProofObject FlowAbstractionProcessor = ()
+  type In FlowAbstractionProcessor          = SizeAbstraction
+  type Out FlowAbstractionProcessor         = FlowAbstraction
+  type Forking FlowAbstractionProcessor     = T.Id
 
   execute FlowAbstraction (Program vs prob) = T.succeedWithId () $ Program vs' (LA.toFlow0 vs' prob)
     where vs' = LA.Counter: LA.Huge : LA.K : vs
@@ -148,7 +155,7 @@ data LareProof = LareProof Proof deriving Show
 
 instance T.Processor LareProcessor where
   type ProofObject LareProcessor = LareProof
-  type In LareProcessor          = Program LA.F
+  type In LareProcessor          = FlowAbstraction
   type Out LareProcessor         = ()
   type Forking LareProcessor     = T.Judgement
 
@@ -159,6 +166,17 @@ instance T.Processor LareProcessor where
     in
     T.succeedWith0 (LareProof proof) (T.judgement $ T.timeUBCert T.Primrec)
 
+
+--- * Strategies -----------------------------------------------------------------------------------------------------
+
+-- lare :: T.Strategy Its FlowAbstraction
+lare = T.strategy "lare" () $
+  processor LooptreeTransformer 
+  .>>> processor SizeAbstraction 
+  .>>> processor FlowAbstraction
+  .>>> T.transform' Right
+  .>>> T.abort
+  where 
 
 --- * Pretty ---------------------------------------------------------------------------------------------------------
 
