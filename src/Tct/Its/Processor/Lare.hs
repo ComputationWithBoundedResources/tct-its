@@ -20,13 +20,13 @@ import           Tct.Core.Common.Pretty       (Pretty, pretty)
 import qualified Tct.Core.Common.Pretty       as PP
 import           Tct.Core.Common.Xml          (Xml, toXml)
 import qualified Tct.Core.Common.Xml          as Xml
+import           Tct.Core.Data                (processor, (.>>>))
 import qualified Tct.Core.Data                as T
-import           Tct.Core.Data                ((.>>>), processor)
 import           Tct.Core.Processor.Transform as T (transform')
 
 import qualified Tct.Common.Polynomial        as P
 
-import           Tct.Its.Data.Complexity
+import           Tct.Its.Data.Complexity      (Complexity (..))
 import qualified Tct.Its.Data.LocalSizebounds as LB (compute, lboundOf)
 import           Tct.Its.Data.Problem
 import           Tct.Its.Data.Types
@@ -40,8 +40,7 @@ type Edge l    = LA.Edge (LA.V Fun) (l (LA.Var Var))
 data Program l = Program
   { dom :: [LA.Var Var]
   , cfg :: LA.Program (LA.V Fun) (l (LA.Var Var)) }
-type Proof     = LA.Top [Edge LA.F] [Edge LA.F]
-
+type Proof     = LA.Tree [Edge LA.F]
 type SizeAbstraction = Program LA.Assignment
 type FlowAbstraction = Program LA.F
 
@@ -161,22 +160,26 @@ instance T.Processor LareProcessor where
 
   execute LareProcessor (Program vs prob) =
     let
-      proof = LA.convert (LA.flow vs) prob
-      -- TODO: bound
+      proof = LA.convert (LA.flowV $ LA.flow vs) prob
+      bound = toComplexity $ LA.boundOfProof proof
     in
-    T.succeedWith0 (LareProof proof) (T.judgement $ T.timeUBCert T.Primrec)
+    T.succeedWith0 (LareProof proof) (T.judgement $ T.timeUBCert bound)
 
+toComplexity :: LA.Complexity -> T.Complexity
+toComplexity LA.Indefinite = T.Unknown
+toComplexity LA.Poly       = T.Poly Nothing
+toComplexity LA.Primrec    = T.Primrec
 
 --- * Strategies -----------------------------------------------------------------------------------------------------
 
 -- lare :: T.Strategy Its FlowAbstraction
-lare = T.strategy "lare" () $
-  processor LooptreeTransformer 
-  .>>> processor SizeAbstraction 
+lare =
+  processor LooptreeTransformer
+  .>>> processor SizeAbstraction
   .>>> processor FlowAbstraction
-  .>>> T.transform' Right
+  .>>> processor LareProcessor
   .>>> T.abort
-  where 
+  where
 
 --- * Pretty ---------------------------------------------------------------------------------------------------------
 
