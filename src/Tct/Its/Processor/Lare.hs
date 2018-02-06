@@ -15,6 +15,7 @@ import           Data.Foldable                (toList)
 import qualified Data.IntMap.Strict           as IM
 import           Data.List                    (intersperse, (\\))
 import           Data.Monoid                  ((<>))
+import qualified Data.Set                     as S
 
 import           Tct.Core.Common.Pretty       (Pretty, pretty)
 import qualified Tct.Core.Common.Pretty       as PP
@@ -22,13 +23,14 @@ import           Tct.Core.Common.Xml          (Xml, toXml)
 import qualified Tct.Core.Common.Xml          as Xml
 import           Tct.Core.Data                (processor, (.>>>))
 import qualified Tct.Core.Data                as T
-import           Tct.Core.Processor.Transform as T (transform')
 
 import qualified Tct.Common.Polynomial        as P
 
 import           Tct.Its.Data.Complexity      (Complexity (..))
 import qualified Tct.Its.Data.LocalSizebounds as LB (compute, lboundOf)
 import           Tct.Its.Data.Problem
+import qualified Tct.Its.Data.Timebounds      as TB (initialise)
+import qualified Tct.Its.Data.TransitionGraph as TG
 import           Tct.Its.Data.Types
 import qualified Tct.Its.Processor.Looptree   as LT
 
@@ -104,11 +106,58 @@ toLareM prob lt = case localSizebounds_ prob of
     lb <- LB.compute (domain prob) (irules_ prob)
     return $ toLare (prob { localSizebounds_ = Just lb }) lt
 
+-- add sinks
 
+addSinks :: Its -> Its
+addSinks prob = prob
+  { irules_          = allrules
+  , tgraph_          = TG.estimateGraph allrules
+  , rvgraph_         = Nothing
+  , timebounds_      =
+      TB.initialise
+        (IM.keys allrules)
+        (IM.keys $ IM.filter (\r -> fun (lhs r) == fun (startterm_ prob) ) allrules)
+  , sizebounds_      = Nothing
+  , localSizebounds_ = Nothing }
+
+  where
+  allrules = irules `IM.union` sinks
+
+  irules = irules_ prob
+  term f = Term { fun = f, args = args (startterm_ prob) }
+  rule f = Rule { lhs = term f, rhs = [ term "exitus616"], con = [] }
+
+  sinks = IM.fromList $
+    zip
+     [ succ (fst (IM.findMax irules)) ..]
+     [ rule f |  f <- nub [ fun (lhs r) | n <- needSinks, let r = irules IM.! n ] ]
+  nub = S.toList . S.fromList
+
+
+
+  needSinks =
+    concat
+      [ theSCC scc
+        | ps <- TG.rootsPaths (tgraph_ prob)
+        , let scc = (head $ reverse ps)
+        , isNonTrivial scc ]
+
+  isNonTrivial (NonTrivial _) = True
+  isNonTrivial _              = False
 
 --- * Processors -----------------------------------------------------------------------------------------------------
 
 -- FIXME: use Tct.Core.Transform
+
+data AddSinksProcessor = AddSinks deriving Show
+
+instance T.Processor AddSinksProcessor where
+  type ProofObject AddSinksProcessor = ()
+  type In AddSinksProcessor          = Its
+  type Out AddSinksProcessor         = Its
+  type Forking AddSinksProcessor     = T.Id
+
+  execute AddSinks prob = T.succeedWithId () (addSinks prob)
 
 
 data LooptreeTransformer = LooptreeTransformer deriving Show
@@ -172,14 +221,6 @@ toComplexity LA.Primrec    = T.Primrec
 
 --- * Strategies -----------------------------------------------------------------------------------------------------
 
--- lare :: T.Strategy Its FlowAbstraction
-lare =
-  processor LooptreeTransformer
-  .>>> processor SizeAbstraction
-  .>>> processor FlowAbstraction
-  .>>> processor LareProcessor
-  .>>> T.abort
-  where
 
 --- * Pretty ---------------------------------------------------------------------------------------------------------
 
