@@ -16,6 +16,7 @@ import qualified Data.IntMap.Strict           as IM
 import           Data.List                    (intersperse, (\\))
 import           Data.Monoid                  ((<>))
 import qualified Data.Set                     as S
+import           Data.Either                       (either)
 
 import           Tct.Core.Common.Pretty       (Pretty, pretty)
 import qualified Tct.Core.Common.Pretty       as PP
@@ -52,19 +53,17 @@ deriving instance Show (Program LA.F)
 -- Size Abstraction of the ITS
 -- Replaces constraints of each edge of the CFG with its local growh.
 toEdges :: Its -> IM.IntMap (Edge LA.Assignment)
-toEdges prob = flip IM.mapWithKey irs $
+toEdges prob = flip IM.mapWithKey (irules_ prob) $
   \i Rule{..} ->
     LA.edge
       (LA.V $ fun lhs)
-      (LA.Assignment [ (LA.Var v, toBound $ LB.lboundOf lsb rv) | v <- vs, let rv = RV i 0 v ])
+      (LA.Assignment
+        [ (LA.Var v, toBound $ LB.lboundOf lsb rv) | v <- domain prob, let rv = RV i 0 v ])
       (LA.V $ fun $ head rhs)
-  where
-    irs      = irules_ prob
-    vs       = domain prob
-    Just lsb = localSizebounds_ prob
+  where Just lsb = localSizebounds_ prob
 
 toBound :: Complexity -> LA.Bound (LA.Var Var)
-toBound Unknown    = LA.Unknown
+toBound Unknown   = LA.Unknown
 toBound (NPoly p) = foldr k (LA.Sum []) (P.toView p) where
   k (c,[])      (LA.Sum bs) = LA.Sum $ (c, LA.K):bs
   k (c,[(v,i)]) (LA.Sum bs)
@@ -93,8 +92,13 @@ toLare prob lt =
   loop cfg cfg' pos bnd = LA.Loop
     { LA.program = cfg'
     , LA.loopid  = LA.Assignment [(LA.Ann (posToVar pos), toBound bnd)]
-    , LA.outer   = [ LA.Out v | e1 <- cfg', e2 <- cfg \\ cfg', LA.src e1 == LA.dst e2, let LA.V v = LA.src e1 ] }
-    where  posToVar = intersperse '.' . concat . fmap show . reverse
+    , LA.inflow  = snub [ LA.src e1 | e1 <- cfg', e2 <- cfg \\ cfg', LA.dst e2 == LA.src e1 ]
+    , LA.outflow = snub [ LA.dst e1 | e1 <- cfg', e2 <- cfg \\ cfg', LA.dst e1 == LA.src e2 ]
+    , LA.outer   = LA.nodes cfg `intersect` LA.nodes cfg' }
+    where
+      posToVar = intersperse '.' . concat . fmap show . reverse
+      intersect a b = S.toList $ S.fromList a `S.intersection` S.fromList b
+
 
   positions pos = (:pos) `fmap` iterate succ (0 :: Int)
 
@@ -209,18 +213,23 @@ instance T.Processor LareProcessor where
 
   execute LareProcessor (Program vs prob) =
     let
-      proof = LA.convert (LA.flowV $ LA.flow vs) prob
-      bound = toComplexity $ LA.boundOfProof proof
+      proofM = LA.convertWith (LA.flowV $ LA.flow vs) prob
     in
-    T.succeedWith0 (LareProof proof) (T.judgement $ T.timeUBCert bound)
+    either
+      (T.abortWith)
+      (\proof -> T.succeedWith0 (LareProof proof) (T.judgement $ T.timeUBCert $ toComplexity $ LA.boundOfProof proof))
+      proofM
+
 
 toComplexity :: LA.Complexity -> T.Complexity
 toComplexity LA.Indefinite = T.Unknown
 toComplexity LA.Poly       = T.Poly Nothing
 toComplexity LA.Primrec    = T.Primrec
 
---- * Strategies -----------------------------------------------------------------------------------------------------
 
+--- * Util -----------------------------------------------------------------------------------------------------------
+
+snub = S.toList . S.fromList
 
 --- * Pretty ---------------------------------------------------------------------------------------------------------
 
