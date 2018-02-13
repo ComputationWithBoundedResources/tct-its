@@ -35,14 +35,15 @@ import qualified Tct.Its.Data.TransitionGraph as TG
 import           Tct.Its.Data.Types
 import qualified Tct.Its.Processor.Looptree   as LT
 
-import qualified Lare.Analysis                as LA
-import qualified Lare.Flow                    as LA
+import qualified Lare.Analysis as LA
+import qualified Lare.Flow as LA
+import qualified Lare.Tick as LA
 
 
-type Edge l    = LA.Edge (LA.V Fun) (l (LA.Var Var))
+type Edge l    = LA.Edge (LA.Vtx Fun) (l (LA.Var Var))
 data Program l = Program
   { dom :: [LA.Var Var]
-  , cfg :: LA.Program (LA.V Fun) (l (LA.Var Var)) }
+  , cfg :: LA.Program Fun (l (LA.Var Var)) }
 type Proof     = LA.Tree [Edge LA.F]
 type SizeAbstraction = Program LA.Assignment
 type FlowAbstraction = Program LA.F
@@ -199,7 +200,7 @@ instance T.Processor FlowAbstractionProcessor where
   type Out FlowAbstractionProcessor         = FlowAbstraction
   type Forking FlowAbstractionProcessor     = T.Id
 
-  execute FlowAbstraction (Program vs prob) = T.succeedWithId () $ Program vs' (LA.toFlow0 vs' prob)
+  execute FlowAbstraction (Program vs prob) = T.succeedWithId () $ Program vs' (LA.toFlow vs' prob)
     where vs' = LA.Counter: LA.Huge : LA.K : vs
 
 data LareProcessor = LareProcessor deriving Show
@@ -213,7 +214,7 @@ instance T.Processor LareProcessor where
 
   execute LareProcessor (Program vs prob) =
     let
-      proofM = LA.convertWith (LA.flowV $ LA.flow vs) prob
+      proofM = LA.convertWith (LA.ticked $ LA.flow vs) prob
     in
     either
       (T.abortWith)
@@ -223,7 +224,9 @@ instance T.Processor LareProcessor where
 
 toComplexity :: LA.Complexity -> T.Complexity
 toComplexity LA.Indefinite = T.Unknown
-toComplexity LA.Poly       = T.Poly Nothing
+toComplexity LA.Constant   = T.Poly (Just 0)
+toComplexity LA.Linear     = T.Poly (Just 1)
+toComplexity LA.Polynomial = T.Poly Nothing
 toComplexity LA.Primrec    = T.Primrec
 
 
@@ -243,7 +246,7 @@ instance Xml LareProof where toXml = const Xml.empty
 instance Pretty (Program LA.Assignment) where pretty p = ppProgram pretty p
 instance Pretty (Program LA.F) where pretty p = ppProgram pretty p
 
-ppProgram :: (LA.Program (LA.V Fun) (t (LA.Var Var)) -> PP.Doc) -> Program t -> PP.Doc
+ppProgram :: (LA.Program Fun (t (LA.Var Var)) -> PP.Doc) -> Program t -> PP.Doc
 ppProgram k (Program vs p) = PP.vcat
   [ PP.text "Program:"
   , PP.indent 2 $ PP.text "Domain: " <> PP.pretty vs

@@ -32,6 +32,7 @@ import qualified Tct.Core.Common.Pretty     as PP
 import qualified Tct.Common.Polynomial as P
 import           Tct.Common.Ring
 import qualified Tct.Common.SMT as SMT
+import           Tct.Common.SMT as SMT ((.&&), (.>=))
 
 import           Tct.Its.Data.Complexity
 import           Tct.Its.Data.Rule
@@ -79,13 +80,22 @@ computeVar vs rpoly cpolys = fromMaybe (error "computeVar") `liftM` foldl1 liftM
   -- direct
   return $ if null cs then Just (poly rpoly, Max (abs c)) else Nothing
   , return $ if rpoly' `elem` pvars then Just (poly rpoly, Max 0) else Nothing
+  -- with optimisation
+  , solveOptimal1 []
+  , solveOptimal1 dependentvs
+  , solveOptimal1 vs
+  , solveOptimal2 dependentvs
+  , solveOptimal2 vs
+  
+  -- , solveOptimal1 vs
+  -- , solveOptimal2 vs
   -- indirect simple
-  , solveWith []
-  , solveWith' dependentvs
-  , solveWith dependentvs
-  -- indirect
-  , solveWith' vs
-  , solveWith vs
+  -- , solveWith []
+  -- , solveWith' dependentvs
+  -- , solveWith dependentvs
+  -- -- indirect
+  -- , solveWith' vs
+  -- , solveWith vs
   -- last resort
   , return  unbounded ]
   where 
@@ -110,6 +120,10 @@ computeVar vs rpoly cpolys = fromMaybe (error "computeVar") `liftM` foldl1 liftM
       where k m = if P.mfromView m == one then IntCoefficient 0 else RestrictCoefficient -- set contant to zero
     liftMPlus m1 m2 = m1 >>= \m1' -> maybe m2 (return . Just) m1'
 
+    solveOptimal1 ls = entscheide (P.linear k ls) rpoly cpolys
+      where k m = if P.mfromView m == one then SomeCoefficient else RestrictCoefficient
+    solveOptimal2 ls = entscheide (P.linear (const SomeCoefficient) ls) rpoly cpolys
+
 
 instance (SMT.Decode m c a, Additive a, Eq a)
   => SMT.Decode m (P.PView c Var) (P.Polynomial a Var) where
@@ -124,7 +138,8 @@ entscheide lview rpoly cpolys = do
 
 entscheide' :: IPolyV -> IPoly -> [APoly] -> TctM (SMT.Result (IPoly,IPoly))
 entscheide' lview rpoly cpolys = do
-  res :: SMT.Result (IPoly,IPoly) <- SMT.smtSolveSt SMT.yices $ do
+  -- res :: SMT.Result (IPoly,IPoly) <- SMT.smtSolveSt SMT.yices $ do
+  res :: SMT.Result (IPoly,IPoly) <- SMT.smtSolveSt SMT.optimathsat $ do
     SMT.setLogic SMT.QF_LIA
 
     let
@@ -159,7 +174,16 @@ entscheide' lview rpoly cpolys = do
     SMT.assert =<< ubounded
     SMT.assert =<< lbounded
 
-    return $ SMT.decode (lapoly, uapoly)
+    -- return $ SMT.decode (lapoly, uapoly)
+  -- return res
+
+    tpoly <- mapM restrictVar lview
+    SMT.assert $ SMT.bigAnd $ [ c .>= SMT.num 0 | (c,_) <- tpoly ]
+    SMT.assert $ SMT.bigAnd $ [ t .>= u .&& t .>= neg u | ((t,_),(u,_)) <- zip tpoly uapoly ]
+    SMT.assert $ SMT.bigAnd $ [ t .>= u .&& t .>= neg u | ((t,_),(u,_)) <- zip tpoly lapoly ]
+    SMT.assert $ SMT.minimize $ SMT.bigAdd  [ c | (c,_) <- tpoly ]
+
+    return $ SMT.decode (tpoly, tpoly)
   return res
 
 
