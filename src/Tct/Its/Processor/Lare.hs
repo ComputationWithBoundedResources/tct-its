@@ -11,18 +11,17 @@ More pricesly this module implements:
 module Tct.Its.Processor.Lare where
 
 
+import           Control.Monad                (when)
 import           Data.Foldable                (toList)
 import qualified Data.IntMap.Strict           as IM
-import           Data.List                    (intersperse, (\\))
+import           Data.List                    (intersperse)
 import           Data.Monoid                  ((<>))
 import qualified Data.Set                     as S
-import           Data.Either                       (either)
 
 import           Tct.Core.Common.Pretty       (Pretty, pretty)
 import qualified Tct.Core.Common.Pretty       as PP
 import           Tct.Core.Common.Xml          (Xml, toXml)
 import qualified Tct.Core.Common.Xml          as Xml
-import           Tct.Core.Data                (processor, (.>>>))
 import qualified Tct.Core.Data                as T
 
 import qualified Tct.Common.Polynomial        as P
@@ -35,16 +34,16 @@ import qualified Tct.Its.Data.TransitionGraph as TG
 import           Tct.Its.Data.Types
 import qualified Tct.Its.Processor.Looptree   as LT
 
-import qualified Lare.Analysis as LA
-import qualified Lare.Flow as LA
-import qualified Lare.Tick as LA
+import qualified Lare.Analysis                as LA
+import qualified Lare.Flow                    as LA
+import qualified Lare.Tick                    as LA
 
 
-type Edge l    = LA.Edge (LA.Vtx Fun) (l (LA.Var Var))
+type Edge v l    = LA.Edge v (l (LA.Var Var))
 data Program l = Program
   { dom :: [LA.Var Var]
   , cfg :: LA.Program Fun (l (LA.Var Var)) }
-type Proof     = LA.Tree [Edge LA.F]
+type Proof     = LA.Tree [Edge (LA.Vtx Fun) LA.F]
 type SizeAbstraction = Program LA.Assignment
 type FlowAbstraction = Program LA.F
 
@@ -53,14 +52,15 @@ deriving instance Show (Program LA.F)
 
 -- Size Abstraction of the ITS
 -- Replaces constraints of each edge of the CFG with its local growh.
-toEdges :: Its -> IM.IntMap (Edge LA.Assignment)
+-- toEdges :: Its -> IM.IntMap (Edge LA.Assignment)
+toEdges :: Its -> IM.IntMap (Edge Fun LA.Assignment)
 toEdges prob = flip IM.mapWithKey (irules_ prob) $
   \i Rule{..} ->
     LA.edge
-      (LA.V $ fun lhs)
+      (fun lhs)
       (LA.Assignment
         [ (LA.Var v, toBound $ LB.lboundOf lsb rv) | v <- domain prob, let rv = RV i 0 v ])
-      (LA.V $ fun $ head rhs)
+      (fun $ head rhs)
   where Just lsb = localSizebounds_ prob
 
 toBound :: Complexity -> LA.Bound (LA.Var Var)
@@ -76,7 +76,7 @@ toBound (NPoly p) = foldr k (LA.Sum []) (P.toView p) where
 toLare :: Its -> LT.Top [RuleId] -> Program LA.Assignment
 toLare prob lt =
   let
-    lare = go0 lt
+    lare = LA.toProgram $ go0 lt
     vs1  = [ LA.Var v | v <- domain prob ]
     vs2  = [ LA.Ann v | l <- toList lare, let LA.Assignment [ (LA.Ann v,_) ] = LA.loopid l ]
   in
@@ -84,21 +84,16 @@ toLare prob lt =
 
   where
   lbs   = toEdges prob
-  edges = IM.elems lbs
   from  = fmap (lbs IM.!)
 
   go0 (LT.Top es ts)    = LA.Top (from es) (goN `fmap` zip (positions [0]) ts)
-  goN (pos,LT.Tree{..}) = LA.Tree (loop edges (from program) pos bound) (goN `fmap` zip (positions pos) subprograms)
+  goN (pos,LT.Tree{..}) = LA.Tree (loop (from program) pos bound) (goN `fmap` zip (positions pos) subprograms)
 
-  loop cfg cfg' pos bnd = LA.Loop
-    { LA.program = cfg'
-    , LA.loopid  = LA.Assignment [(LA.Ann (posToVar pos), toBound bnd)]
-    , LA.inflow  = snub [ LA.src e1 | e1 <- cfg', e2 <- cfg \\ cfg', LA.dst e2 == LA.src e1 ]
-    , LA.outflow = snub [ LA.dst e1 | e1 <- cfg', e2 <- cfg \\ cfg', LA.dst e1 == LA.src e2 ]
-    , LA.outer   = LA.nodes cfg `intersect` LA.nodes cfg' }
+  loop cfg' pos bnd = LA.SimpleLoop
+    { LA.program' = cfg'
+    , LA.loopid'  = LA.Assignment [(LA.Ann (posToVar pos), toBound bnd)] }
     where
       posToVar = intersperse '.' . concat . fmap show . reverse
-      intersect a b = S.toList $ S.fromList a `S.intersection` S.fromList b
 
 
   positions pos = (:pos) `fmap` iterate succ (0 :: Int)
@@ -214,11 +209,15 @@ instance T.Processor LareProcessor where
 
   execute LareProcessor (Program vs prob) =
     let
-      proofM = LA.convertWith (LA.ticked $ LA.flow vs) prob
+      proofM = do
+        proof <- LA.convertWith (LA.ticked $ LA.flow vs) prob
+        let bound = LA.boundOfProof proof
+        when (bound == LA.Indefinite) (Left "unknown bound.")
+        return (proof, bound)
     in
     either
       (T.abortWith)
-      (\proof -> T.succeedWith0 (LareProof proof) (T.judgement $ T.timeUBCert $ toComplexity $ LA.boundOfProof proof))
+      (\(proof, bound) -> T.succeedWith0 (LareProof proof) (T.judgement $ T.timeUBCert $ toComplexity bound))
       proofM
 
 
@@ -230,9 +229,6 @@ toComplexity LA.Polynomial = T.Poly Nothing
 toComplexity LA.Primrec    = T.Primrec
 
 
---- * Util -----------------------------------------------------------------------------------------------------------
-
-snub = S.toList . S.fromList
 
 --- * Pretty ---------------------------------------------------------------------------------------------------------
 
