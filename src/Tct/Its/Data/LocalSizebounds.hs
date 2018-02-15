@@ -13,13 +13,15 @@ module Tct.Its.Data.LocalSizebounds
   (
   LocalSizebounds
   , compute
+  , computeWith
+  , Minimize (..)
   -- * Queries
   , lboundOf
   , lgrowthOf
   ) where
 
 
-import           Control.Monad         (liftM)
+import           Control.Monad         (liftM, when)
 import           Data.Maybe (fromMaybe)
 import qualified Data.IntMap.Strict       as IM
 import qualified Data.Map.Strict       as M
@@ -32,6 +34,7 @@ import qualified Tct.Core.Common.Pretty     as PP
 import qualified Tct.Common.Polynomial as P
 import           Tct.Common.Ring
 import qualified Tct.Common.SMT as SMT
+import           Tct.Common.SMT as SMT ((.&&), (.>=))
 
 import           Tct.Its.Data.Complexity
 import           Tct.Its.Data.Rule
@@ -49,6 +52,9 @@ data Coefficient
   | IntCoefficient Int
   deriving (Eq,Ord,Show)
 
+-- Add minimisation constraints
+-- invokes optimathsat
+data Minimize = Minimize | NoMinimize deriving (Eq, Ord, Show)
 
 lboundOf :: LocalSizebounds -> RV -> Complexity
 lboundOf lbounds rv = fst (error err `fromMaybe` M.lookup rv lbounds)
@@ -60,12 +66,15 @@ lgrowthOf lbounds rv = snd (error err `fromMaybe` M.lookup rv lbounds)
 
 
 compute :: Vars -> Rules -> TctM LocalSizebounds
-compute vs rs = M.unions `liftM` sequence (IM.foldrWithKey k [] rs)
-  where k i r acc = computeRule vs (i,r) : acc
+compute = computeWith NoMinimize
 
-computeRule :: Vars -> (RuleId, Rule) -> TctM LocalSizebounds
-computeRule vs ir = M.fromList `liftM` mapM k (rvss vs ir)
-  where k (rv,rpoly,cpolys) = computeVar vs rpoly cpolys >>= \c -> return (rv,c)
+computeWith :: Minimize -> Vars -> Rules -> TctM LocalSizebounds
+computeWith minimize vs rs = M.unions `liftM` sequence (IM.foldrWithKey k [] rs)
+  where k i r acc = computeRule minimize vs (i,r) : acc
+
+computeRule :: Minimize -> Vars -> (RuleId, Rule) -> TctM LocalSizebounds
+computeRule minimize vs ir = M.fromList `liftM` mapM k (rvss vs ir)
+  where k (rv,rpoly,cpolys) = computeVar minimize vs rpoly cpolys >>= \c -> return (rv,c)
 
 rvss :: Vars -> (RuleId, Rule) -> [(RV, IPoly, [APoly])]
 rvss vs (ruleIdx, Rule _ rs cs) =
@@ -73,58 +82,61 @@ rvss vs (ruleIdx, Rule _ rs cs) =
     | (rhsIdx, r) <- zip [0..] rs, (v, rpoly) <- zip vs (args r) ]
   where cs' = [ P.mapCoefficients SMT.num p | Gte p _ <- filterLinear (toGte cs) ]
 
-computeVar :: Vars -> IPoly -> [APoly] -> TctM (Complexity, Growth)
-computeVar vs rpoly cpolys = fromMaybe (error "computeVar") `liftM` foldl1 liftMPlus
+computeVar :: Minimize -> Vars -> IPoly -> [APoly] -> TctM (Complexity, Growth)
+computeVar minimize vs rpoly cpolys = fromMaybe (error "computeVar") `liftM` foldl1 liftMPlus
   [ 
   -- direct
   return $ if null cs then Just (poly rpoly, Max (abs c)) else Nothing
   , return $ if rpoly' `elem` pvars then Just (poly rpoly, Max 0) else Nothing
   -- indirect simple
-  , solveWith []
-  , solveWith' dependentvs
-  , solveWith dependentvs
-  -- indirect
-  , solveWith' vs
-  , solveWith vs
+  , solveRestricted []
+  , solveRestricted dependentvs
+  , solveSome       dependentvs
+  , whenM (dependentvs /= vs) (solveRestricted vs)
+  , whenM (dependentvs /= vs) (solveSome       vs)
   -- last resort
   , return  unbounded ]
   where 
     (cs,c)    = P.coefficients' rpoly
     pvars     = map P.variable vs
     rpoly'    = P.mapCoefficients abs rpoly
-    unbounded = Just (Unknown, Unbounded)
-    dependentvs = vs `intersect` S.toList (deps rvs rvs (map P.variables cpolys))
-      where 
-        rvs = S.fromList (P.variables rpoly)
-        deps new old vss
-          | S.null new || null vss = old
-          | otherwise = deps (new' `S.difference` old) (old `S.union` new') vss2
-          where 
-            (vss1,vss2) = L.partition (any (`S.member` old)) vss
-            new' = S.unions $ map S.fromList vss1
-    solveWith ls = entscheide (P.linear k ls) rpoly cpolys
-
-      where k m = if P.mfromView m == one then SomeCoefficient else RestrictCoefficient
-    solveWith' [] = return Nothing
-    solveWith' ls = entscheide (P.linear k ls) rpoly cpolys
-      where k m = if P.mfromView m == one then IntCoefficient 0 else RestrictCoefficient -- set contant to zero
     liftMPlus m1 m2 = m1 >>= \m1' -> maybe m2 (return . Just) m1'
+    whenM False d = return Nothing
+    whenM True d  = d
+
+    dependentvs = vs `intersect` S.toList (deps rvs rvs (map P.variables cpolys)) where
+      rvs = S.fromList (P.variables rpoly)
+      deps new old vss
+        | S.null new || null vss = old
+        | otherwise              = deps (new' `S.difference` old) (old `S.union` new') vss2
+        where 
+          (vss1,vss2) = L.partition (any (`S.member` old)) vss
+          new'        = S.unions $ map S.fromList vss1
+
+    isConstant m    = P.mfromView m == one
+    solveWith k ls  = entscheide minimize (P.linear k ls) rpoly cpolys
+    solveRestricted = solveWith $ \m -> if isConstant m then SomeCoefficient else RestrictCoefficient
+    solveSome       = solveWith $ const SomeCoefficient
+
+    unbounded = Just (Unknown, Unbounded)
 
 
 instance (SMT.Decode m c a, Additive a, Eq a)
   => SMT.Decode m (P.PView c Var) (P.Polynomial a Var) where
   decode = P.fromViewWithM SMT.decode
 
-entscheide :: IPolyV -> IPoly -> [APoly] -> TctM (Maybe (Complexity, Growth))
-entscheide lview rpoly cpolys = do
-  res <- entscheide' lview rpoly cpolys
+entscheide :: Minimize -> IPolyV -> IPoly -> [APoly] -> TctM (Maybe (Complexity, Growth))
+entscheide minimize lview rpoly cpolys = do
+  res <- entscheide' minimize lview rpoly cpolys
   return $ case res of
     SMT.Sat (lp,ap) -> let r = poly lp `maximal` poly ap in Just (r,growth r)
     _               -> Nothing
 
-entscheide' :: IPolyV -> IPoly -> [APoly] -> TctM (SMT.Result (IPoly,IPoly))
-entscheide' lview rpoly cpolys = do
-  res :: SMT.Result (IPoly,IPoly) <- SMT.smtSolveSt SMT.yices $ do
+
+entscheide' :: Minimize -> IPolyV -> IPoly -> [APoly] -> TctM (SMT.Result (IPoly,IPoly))
+entscheide' minimize lview rpoly cpolys = do
+  res :: SMT.Result (IPoly,IPoly) 
+    <- SMT.smtSolveSt (if minimize == Minimize then SMT.optimathsat else SMT.yices) $ do
     SMT.setLogic SMT.QF_LIA
 
     let
@@ -159,9 +171,16 @@ entscheide' lview rpoly cpolys = do
     SMT.assert =<< ubounded
     SMT.assert =<< lbounded
 
+    when (minimize == Minimize) $ do
+      tpoly <- mapM restrictVar lview
+      SMT.assert $ SMT.bigAnd $ [ c .>= SMT.num 0 | (c,_) <- tpoly ]
+      SMT.assert $ SMT.bigAnd $ [ t .>= u .&& t .>= neg u | ((t,_),(u,_)) <- zip tpoly uapoly ]
+      SMT.assert $ SMT.bigAnd $ [ t .>= u .&& t .>= neg u | ((t,_),(u,_)) <- zip tpoly lapoly ]
+      SMT.assert $ SMT.minimize $ SMT.bigAdd  [ c | (c,_) <- tpoly ]
+   
     return $ SMT.decode (lapoly, uapoly)
+  
   return res
-
 
 ppLocalSizebounds :: Vars -> LocalSizebounds -> PP.Doc
 ppLocalSizebounds vars lbounds = ppRVs vars (M.assocs lbounds) ppLbound
