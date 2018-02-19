@@ -3,6 +3,7 @@ module Tct.Its.Data.ResultVariableGraph
   RVGraph
   , compute  
   , predecessors
+  , successors
   , incoming
   , SCC (..)
   , sccs
@@ -43,6 +44,13 @@ predecessors rvgraph rv = preds
     rvid    = fst $ Gr.mkNode_ (Gr.fromGraph rvgraph) rv
     predids = Gr.pre rvgraph rvid
     preds = map (fromJust' "RV predecessors.label" . Gr.lab rvgraph) predids
+
+successors :: RVGraph -> RV -> [RV]
+successors rvgraph rv = succs
+  where
+    rvid    = fst $ Gr.mkNode_ (Gr.fromGraph rvgraph) rv
+    succids = Gr.suc rvgraph rvid
+    succs   = map (fromJust' "RV successors.label" . Gr.lab rvgraph) succids
 
 incoming :: RVGraph -> [RV] -> [RV]
 incoming rvgraph rvs = preds L.\\ rvs
