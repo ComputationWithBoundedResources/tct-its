@@ -19,6 +19,7 @@ module Tct.Its.Data.TransitionGraph
   -- * Update
   , deleteNodes
   , restrictToNodes
+  , insertEdges
   ) where
 
 
@@ -162,6 +163,9 @@ deleteNodes = Gr.delNodes
 restrictToNodes :: [RuleId] -> TGraph -> TGraph
 restrictToNodes rs gr = deleteNodes invrs gr
   where invrs = S.toList $ S.fromList (Gr.nodes gr) `S.difference` S.fromList rs
+
+insertEdges :: [(RuleId, RuleId, ComId)] -> TGraph -> TGraph
+insertEdges = Gr.insEdges
 
 
 --- * cycles ---------------------------------------------------------------------------------------------------------
