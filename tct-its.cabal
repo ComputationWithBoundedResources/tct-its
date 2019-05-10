@@ -1,5 +1,5 @@
 Name:          tct-its
-Version:       3.2.0
+Version:       3.3.0
 Author:
   Georg Moser, Michael Schaper
 Maintainer:
@@ -28,17 +28,9 @@ Executable tct-its
   hs-source-dirs:
     tct-its
   build-depends:
-    containers       >= 0.5 && < 0.6,
-    mtl              >= 2.1 && < 2.3,
-    base             == 4.*,
-    fgl              == 5.5.*,
-    fgl-visualize    == 0.1.0.*,
-    parsec           == 3.1.*,
-
-    slogic           == 0.*,
-    tct-common       == 3.2.*,
-    tct-core         == 3.2.*,
-    tct-its          == 3.2.*
+    base,
+    tct-core,
+    tct-its == 3.3.*
 
   extensions: 
     ConstraintKinds,
@@ -81,19 +73,19 @@ Library
     Tct.Its.Processor.Sizebounds
     Tct.Its.Strategies
   build-depends:
-    containers       >= 0.5 && < 0.6,
-    mtl              >= 2.1 && < 2.3,
-    base             == 4.*,
-    fgl              == 5.5.*,
-    fgl-visualize    == 0.1.0.*,
-    parsec           == 3.1.*,
+    containers,
+    mtl,
+    base,
+    fgl,
+    fgl-visualize,
+    parsec,
 
-    slogic           == 0.*,
-    tct-common       == 3.2.*,
-    tct-core         == 3.2.*
+    slogic >= 0.3,
+    tct-common >= 3.3,
+    tct-core >= 3.3
     
   ghc-options:
-    -Wall -fno-warn-orphans -fno-spec-constr-count -rtsopts -with-rtsopts=-N
+    -Wall -fno-warn-orphans -fno-spec-constr-count
     -- -Wall -O0 -fno-warn-orphans -fdefer-typed-holes
   extensions: 
     ConstraintKinds,

@@ -101,7 +101,7 @@ computeVar minimize vs rpoly cpolys = fromMaybe (error "computeVar") `liftM` fol
     pvars     = map P.variable vs
     rpoly'    = P.mapCoefficients abs rpoly
     liftMPlus m1 m2 = m1 >>= \m1' -> maybe m2 (return . Just) m1'
-    whenM False d = return Nothing
+    whenM False _ = return Nothing
     whenM True d  = d
 
     dependentvs = vs `intersect` S.toList (deps rvs rvs (map P.variables cpolys)) where

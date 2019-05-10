@@ -33,7 +33,7 @@ module Tct.Its.Data.Rule
 
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
-import Control.Monad (void,join)
+import Control.Monad (void)
 import Control.Applicative
 import qualified Text.Parsec.Expr as PE
 

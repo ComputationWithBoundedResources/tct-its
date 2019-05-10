@@ -79,7 +79,7 @@ import qualified Tct.Common.Polynomial               as P
 import qualified Tct.Common.PolynomialInterpretation as PI
 import           Tct.Common.Ring
 import qualified Tct.Common.SMT as SMT
-import qualified SLogic.Smt.Solver (optimathsat)
+-- import qualified SLogic.Smt.Solver (optimathsat)
 
 import qualified Tct.Its.Data.Complexity             as C
 import           Tct.Its.Data.Problem
